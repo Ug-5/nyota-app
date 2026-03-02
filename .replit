@@ -1,8 +1,9 @@
 entrypoint = "README.md"
-modules = ["nodejs-22"]
+modules = ["nodejs-22", "dart-3.10"]
 
 [nix]
 channel = "stable-24_05"
+packages = ["flutter"]
 
 [deployment]
 deploymentTarget = "cloudrun"
@@ -35,6 +36,10 @@ author = "agent"
 task = "workflow.run"
 args = "Start App"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Start Flutter"
+
 [[workflows.workflow]]
 name = "Start App"
 author = "agent"
@@ -49,22 +54,13 @@ task = "workflow.run"
 args = "Start Frontend"
 
 [[workflows.workflow]]
-name = "Start Backend"
+name = "Start Flutter"
 author = "agent"
-mode = "sequential"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "npm run server:dev"
+args = "cd gymack && flutter run -d web-server --web-port=5000 --web-hostname=0.0.0.0"
 waitForPort = 5000
 
-[[workflows.workflow]]
-name = "Start Frontend"
-author = "agent"
-mode = "sequential"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "npm run expo:dev"
-waitForPort = 8081
-ensurePreviewReachable = "/status"
+[workflows.workflow.metadata]
+outputType = "webview"
