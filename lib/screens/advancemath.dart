@@ -4,7 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:nyota/theme.dart';
-import 'package:flutter_tts/flutter_tts.dart';  
+import 'package:flutter_tts/flutter_tts.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:flutter/services.dart';
+
 class AdvancedMathActivityScreen extends StatefulWidget {
   final VoidCallback onSessionComplete;
   final String? rewardImagePath;
@@ -32,15 +35,19 @@ class _AdvancedMathActivityScreenState extends State<AdvancedMathActivityScreen>
   late List<int> choices;
   bool showHint = false;
 
-  // TTS
   late FlutterTts flutterTts;
 
   @override
   void initState() {
     super.initState();
     _initTTS();
-    _loadLevel();
-    _generateNewTrial();
+
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
+
+    _loadLevel().then((_) => _generateNewTrial()); // ← uses correct saved level
   }
 
   Future<void> _initTTS() async {
@@ -52,12 +59,22 @@ class _AdvancedMathActivityScreenState extends State<AdvancedMathActivityScreen>
   }
 
   Future<void> _speak(String text) async {
+  final prefs = await SharedPreferences.getInstance();
+  final soundEnabled = prefs.getBool('sound_enabled') ?? true;
+  if (soundEnabled) {
     await flutterTts.speak(text);
   }
+}
 
   @override
   void dispose() {
     flutterTts.stop();
+
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
     super.dispose();
   }
 
@@ -130,25 +147,45 @@ class _AdvancedMathActivityScreenState extends State<AdvancedMathActivityScreen>
   Widget _buildProblem() {
     return Column(
       children: [
-        Text(isMultiplication ? '$a × $b' : '$a ÷ $b', style: GoogleFonts.fredoka(fontSize: 42, fontWeight: FontWeight.w700, color: AppTheme.primary)),
-        const SizedBox(height: 20),
+        Text(
+          isMultiplication ? '$a × $b' : '$a ÷ $b',
+          style: GoogleFonts.fredoka(fontSize: 42.sp, fontWeight: FontWeight.w700, color: AppTheme.primary),
+        ),
+        SizedBox(height: 20.h),
         isMultiplication ? _buildGrid(a, b) : _buildDivisionGroups(a, b),
       ],
     );
   }
 
   Widget _buildGrid(int rows, int cols) {
-    return Wrap(spacing: 8, runSpacing: 8, children: List.generate(rows * cols, (_) => Icon(Icons.circle, size: 24, color: AppTheme.primary)));
+    return Wrap(
+      spacing: 8.w,
+      runSpacing: 8.h,
+      children: List.generate(rows * cols, (_) => Icon(
+        Icons.circle,
+        size: 24.w,
+        color: AppTheme.primary,
+      )),
+    );
   }
 
   Widget _buildDivisionGroups(int total, int perGroup) {
     return Wrap(
-      spacing: 16,
-      runSpacing: 12,
+      spacing: 16.w,
+      runSpacing: 12.h,
       children: List.generate(total ~/ perGroup, (_) => Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(border: Border.all(color: AppTheme.primary, width: 2), borderRadius: BorderRadius.circular(12)),
-        child: Wrap(children: List.generate(perGroup, (_) => Icon(Icons.circle, size: 18, color: AppTheme.primary))),
+        padding: EdgeInsets.all(8.w),
+        decoration: BoxDecoration(
+          border: Border.all(color: AppTheme.primary, width: 2.w),
+          borderRadius: BorderRadius.circular(12.r),
+        ),
+        child: Wrap(
+          children: List.generate(perGroup, (_) => Icon(
+            Icons.circle,
+            size: 18.w,
+            color: AppTheme.primary,
+          )),
+        ),
       )),
     );
   }
@@ -161,15 +198,32 @@ class _AdvancedMathActivityScreenState extends State<AdvancedMathActivityScreen>
         child: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
+              padding: EdgeInsets.fromLTRB(24.w, 16.h, 24.w, 8.h),
               child: Row(
                 children: [
-                  Expanded(child: LinearProgressIndicator(value: (currentTrial + 1) / totalTrials, backgroundColor: AppTheme.surfaceVariant, color: AppTheme.primary, minHeight: 14, borderRadius: BorderRadius.circular(7))),
-                  const SizedBox(width: 16),
-                  Text('${currentTrial + 1} / $totalTrials', style: GoogleFonts.fredoka(fontSize: 18, fontWeight: FontWeight.w600, color: AppTheme.primary)),
-                  const SizedBox(width: 8),
-                  IconButton(onPressed: () => setState(() => showHint = true), icon: const Icon(Icons.help_outline_rounded, color: AppTheme.primary, size: 28)),
-                  IconButton(onPressed: () => _speak(isMultiplication ? "$a times $b" : "$a divided by $b"), icon: const Icon(Icons.volume_up_rounded, color: AppTheme.primary, size: 28)),
+                  Expanded(
+                    child: LinearProgressIndicator(
+                      value: (currentTrial + 1) / totalTrials,
+                      backgroundColor: AppTheme.surfaceVariant,
+                      color: AppTheme.primary,
+                      minHeight: 14.h,
+                      borderRadius: BorderRadius.circular(7.r),
+                    ),
+                  ),
+                  SizedBox(width: 16.w),
+                  Text(
+                    '${currentTrial + 1} / $totalTrials',
+                    style: GoogleFonts.fredoka(fontSize: 18.sp, fontWeight: FontWeight.w600, color: AppTheme.primary),
+                  ),
+                  SizedBox(width: 8.w),
+                  IconButton(
+                    onPressed: () => setState(() => showHint = true),
+                    icon: Icon(Icons.help_outline_rounded, color: AppTheme.primary, size: 28.w),
+                  ),
+                  IconButton(
+                    onPressed: () => _speak(isMultiplication ? "$a times $b" : "$a divided by $b"),
+                    icon: Icon(Icons.volume_up_rounded, color: AppTheme.primary, size: 28.w),
+                  ),
                 ],
               ),
             ),
@@ -177,16 +231,19 @@ class _AdvancedMathActivityScreenState extends State<AdvancedMathActivityScreen>
             const Spacer(),
 
             Container(
-              width: 300,
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(color: AppTheme.primary.withOpacity(0.08), borderRadius: BorderRadius.circular(32)),
+              width: 300.w,
+              padding: EdgeInsets.all(24.w),
+              decoration: BoxDecoration(
+                color: AppTheme.primary.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(32.r),
+              ),
               child: _buildProblem(),
             ),
 
             const Spacer(),
 
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
+              padding: EdgeInsets.symmetric(horizontal: 20.w),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: choices.map((num) {
@@ -195,14 +252,22 @@ class _AdvancedMathActivityScreenState extends State<AdvancedMathActivityScreen>
                     onTap: () => _handleTap(num),
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 400),
-                      width: 100,
-                      height: 110,
+                      width: 100.w,
+                      height: 110.h,
                       decoration: BoxDecoration(
                         color: isHinted ? AppTheme.success.withOpacity(0.25) : AppTheme.surface,
-                        borderRadius: BorderRadius.circular(24),
-                        border: Border.all(color: isHinted ? AppTheme.success : AppTheme.surfaceVariant, width: isHinted ? 7 : 3),
+                        borderRadius: BorderRadius.circular(24.r),
+                        border: Border.all(
+                          color: isHinted ? AppTheme.success : AppTheme.surfaceVariant,
+                          width: isHinted ? 7.w : 3.w,
+                        ),
                       ),
-                      child: Center(child: Text(num.toString(), style: GoogleFonts.fredoka(fontSize: 42, fontWeight: FontWeight.w700, color: AppTheme.primary))),
+                      child: Center(
+                        child: Text(
+                          num.toString(),
+                          style: GoogleFonts.fredoka(fontSize: 42.sp, fontWeight: FontWeight.w700, color: AppTheme.primary),
+                        ),
+                      ),
                     ),
                   );
                 }).toList(),

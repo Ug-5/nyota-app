@@ -6,7 +6,8 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:nyota/theme.dart';
 import '../services/storage_service.dart';
-import '../services/pin.dart';  // ← Make sure this file exists (see below)
+import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:shared_preferences/shared_preferences.dart';   // ← Added for persistent settings
 
 class ParentDashboard extends StatefulWidget {
   const ParentDashboard({super.key});
@@ -17,7 +18,11 @@ class ParentDashboard extends StatefulWidget {
 
 class _ParentDashboardState extends State<ParentDashboard> {
   bool _isLoading = true;
+  bool _isAuthenticatedLocally = false;
 
+  // ──────────────────────────────────────────────
+  // Core dashboard state
+  // ──────────────────────────────────────────────
   Map<String, List<Map<String, dynamic>>> _schedules = {
     'Shapes': [],
     'Counting': [],
@@ -45,7 +50,6 @@ class _ParentDashboardState extends State<ParentDashboard> {
 
   Future<void> _checkAccess() async {
     final user = FirebaseAuth.instance.currentUser;
-
     if (user == null) {
       if (mounted) {
         Navigator.pushReplacementNamed(context, '/login');
@@ -54,135 +58,123 @@ class _ParentDashboardState extends State<ParentDashboard> {
     }
 
     setState(() => _isLoading = false);
+    await _showPasswordPrompt();
+  }
 
-    // Check if PIN is already set
-    final hasPin = await PinService.hasPin();
+  Future<void> _showPasswordPrompt({bool isRetry = false}) async {
+    final controller = TextEditingController();
 
-    if (!hasPin) {
-      // First time: let parent set PIN
-      await _setPinDialog();
-    } else {
-      // Ask for PIN
-      await _verifyPinDialog();
+    bool? confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => WillPopScope(
+        onWillPop: () async => false,
+        child: AlertDialog(
+          title: Text(
+            isRetry ? 'Incorrect Password' : 'Parent Verification Required',
+            style: GoogleFonts.fredoka(fontWeight: FontWeight.w700, fontSize: 22.sp),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Please enter your password to access the parent dashboard.\n\n'
+                'This extra step helps keep your child’s settings safe.',
+                style: GoogleFonts.fredoka(fontSize: 15.sp, height: 1.4),
+              ),
+              SizedBox(height: 20.h),
+              TextField(
+                controller: controller,
+                obscureText: true,
+                autofocus: true,
+                decoration: InputDecoration(
+                  labelText: 'Password',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(16.r)),
+                  filled: true,
+                  fillColor: AppTheme.surfaceVariant,
+                ),
+                onSubmitted: (_) => Navigator.pop(dialogContext, true),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                FirebaseAuth.instance.signOut();
+                Navigator.pop(dialogContext, false);
+              },
+              child: Text('Log out', style: GoogleFonts.fredoka(color: AppTheme.error)),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.primary,
+                foregroundColor: AppTheme.onPrimary,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20.r)),
+              ),
+              child: Text('Unlock', style: GoogleFonts.fredoka(fontWeight: FontWeight.w600)),
+            ),
+          ],
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24.r)),
+          contentPadding: EdgeInsets.fromLTRB(24.w, 20.h, 24.w, 8.h),
+        ),
+      ),
+    );
+
+    if (confirmed != true || !mounted) {
+      await FirebaseAuth.instance.signOut();
+      if (mounted) {
+        Navigator.pushReplacementNamed(context, '/login');
+      }
+      return;
     }
-  }
 
-  Future<void> _setPinDialog() async {
-    final controller = TextEditingController();
+    final entered = controller.text.trim();
+    if (entered.isEmpty) {
+      _showPasswordPrompt(isRetry: true);
+      return;
+    }
 
-    await showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: Text("Set Your Parent PIN", style: GoogleFonts.fredoka(fontWeight: FontWeight.w700)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              "Choose a 4–6 digit PIN. You'll need it every time you open the parent dashboard.",
-              style: GoogleFonts.fredoka(fontSize: 15),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: controller,
-              keyboardType: TextInputType.number,
-              maxLength: 6,
-              decoration: InputDecoration(
-                labelText: 'Your PIN',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
-                filled: true,
-                fillColor: AppTheme.surfaceVariant,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text("Later", style: GoogleFonts.fredoka()),
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null || user.email == null) throw Exception('No authenticated user');
+
+      final credential = EmailAuthProvider.credential(
+        email: user.email!,
+        password: entered,
+      );
+
+      await user.reauthenticateWithCredential(credential);
+
+      if (mounted) {
+        setState(() => _isAuthenticatedLocally = true);
+        _loadData();
+      }
+    } on FirebaseAuthException catch (e) {
+      String msg = 'Incorrect password';
+      if (e.code == 'wrong-password') msg = 'Incorrect password';
+      if (e.code == 'too-many-requests') msg = 'Too many attempts. Please try again later.';
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(msg, style: GoogleFonts.fredoka()),
+            backgroundColor: AppTheme.error,
+            duration: const Duration(seconds: 4),
           ),
-          ElevatedButton(
-            onPressed: () async {
-              final pin = controller.text.trim();
-              if (pin.length >= 4 && pin.length <= 6 && int.tryParse(pin) != null) {
-                await PinService.setPin(pin);
-                if (mounted) {
-                  setState(() {}); // refresh UI
-                  _loadData();
-                }
-                Navigator.pop(context);
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("PIN must be 4–6 digits")),
-                );
-              }
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary),
-            child: Text("Save PIN", style: GoogleFonts.fredoka()),
+        );
+        _showPasswordPrompt(isRetry: true);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error verifying password', style: GoogleFonts.fredoka()),
+            backgroundColor: AppTheme.error,
           ),
-        ],
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      ),
-    );
-  }
-
-  Future<void> _verifyPinDialog({bool isRetry = false}) async {
-    final controller = TextEditingController();
-
-    final isValid = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(isRetry ? 'Incorrect PIN – Try Again' : 'Enter Parent PIN'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              "Enter your 4–6 digit PIN to access parent settings.",
-              style: GoogleFonts.fredoka(fontSize: 15),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: controller,
-              keyboardType: TextInputType.number,
-              obscureText: true,
-              maxLength: 6,
-              decoration: InputDecoration(
-                labelText: 'PIN',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
-                filled: true,
-                fillColor: AppTheme.surfaceVariant,
-                errorText: isRetry ? 'Incorrect PIN' : null,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              FirebaseAuth.instance.signOut();
-              Navigator.pop(dialogContext, false);
-            },
-            child: Text('Log out', style: GoogleFonts.fredoka(color: AppTheme.error)),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final entered = controller.text.trim();
-              final valid = await PinService.verifyPin(entered);
-              Navigator.pop(dialogContext, valid);
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary),
-            child: Text('Unlock', style: GoogleFonts.fredoka()),
-          ),
-        ],
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      ),
-    );
-
-    if (isValid == true && mounted) {
-      await _loadData();
-    } else if (isValid == false && mounted) {
-      _verifyPinDialog(isRetry: true);
+        );
+      }
     }
   }
 
@@ -193,11 +185,16 @@ class _ParentDashboardState extends State<ParentDashboard> {
     final loadedSchedules = await storage.loadActivitySchedules();
     final loadedRewards = await storage.loadRewardImages();
 
+    // Load persistent settings
+    final prefs = await SharedPreferences.getInstance();
+
     if (!mounted) return;
 
     setState(() {
       _schedules = loadedSchedules;
       _rewardImages = loadedRewards;
+      _soundEnabled = prefs.getBool('sound_enabled') ?? true;
+      _isDarkMode = prefs.getBool('dark_mode') ?? false;
     });
   }
 
@@ -211,7 +208,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28.r))),
       builder: (context) => _ScheduleEditorBottomSheet(
         activityName: activity,
         currentSessions: _schedules[activity] ?? [],
@@ -241,106 +238,209 @@ class _ParentDashboardState extends State<ParentDashboard> {
     );
   }
 
+  void _showChangePasswordDialog() {
+    final oldCtrl = TextEditingController();
+    final newCtrl = TextEditingController();
+    final confirmCtrl = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text("Change Password", style: GoogleFonts.fredoka(fontWeight: FontWeight.w700, fontSize: 20.sp)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: oldCtrl,
+              obscureText: true,
+              decoration: InputDecoration(
+                labelText: "Current Password",
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(16.r)),
+              ),
+            ),
+            SizedBox(height: 16.h),
+            TextField(
+              controller: newCtrl,
+              obscureText: true,
+              decoration: InputDecoration(
+                labelText: "New Password",
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(16.r)),
+              ),
+            ),
+            SizedBox(height: 16.h),
+            TextField(
+              controller: confirmCtrl,
+              obscureText: true,
+              decoration: InputDecoration(
+                labelText: "Confirm New Password",
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(16.r)),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text("Cancel", style: GoogleFonts.fredoka(fontSize: 16.sp)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (newCtrl.text == confirmCtrl.text && newCtrl.text.length >= 6) {
+                try {
+                  final user = FirebaseAuth.instance.currentUser;
+                  if (user != null && user.email != null) {
+                    final credential = EmailAuthProvider.credential(
+                      email: user.email!,
+                      password: oldCtrl.text,
+                    );
+                    await user.reauthenticateWithCredential(credential);
+                    await user.updatePassword(newCtrl.text);
+
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: const Text("Password updated"), backgroundColor: AppTheme.success),
+                    );
+                  }
+                } on FirebaseAuthException catch (e) {
+                  String msg = "Error updating password";
+                  if (e.code == 'wrong-password') msg = "Current password is incorrect";
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(msg), backgroundColor: AppTheme.error),
+                  );
+                }
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: const Text("Passwords don't match or too short"), backgroundColor: AppTheme.error),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary),
+            child: Text("Save", style: GoogleFonts.fredoka(fontSize: 16.sp)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _logout() async {
+    await FirebaseAuth.instance.signOut();
+  }
+
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    if (_isLoading || !_isAuthenticatedLocally) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
     }
 
     return Scaffold(
       backgroundColor: AppTheme.background,
       appBar: AppBar(
-        title: Text("Parent Dashboard", style: GoogleFonts.fredoka(fontWeight: FontWeight.w700)),
+        title: Text("Parent Dashboard", style: GoogleFonts.fredoka(fontWeight: FontWeight.w700, fontSize: 22.sp)),
         backgroundColor: AppTheme.surface,
         foregroundColor: AppTheme.textPrimary,
         elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            tooltip: 'Log out',
+            onPressed: _logout,
+          ),
+        ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 80),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.only(bottom: 20),
-              child: Text(
-                "Hi! Let's plan today's learning",
-                style: GoogleFonts.fredoka(fontSize: 24, fontWeight: FontWeight.w700, color: AppTheme.textPrimary),
-              ),
-            ),
-
-            Text(
-              "Daily Schedule",
-              style: GoogleFonts.fredoka(fontSize: 20, fontWeight: FontWeight.w600, color: AppTheme.textSecondary),
-            ),
-            const SizedBox(height: 12),
-            ..._activities.map((act) => _buildSchedulerCard(act)),
-
-            const SizedBox(height: 40),
-
-            Text(
-              "Reward Settings",
-              style: GoogleFonts.fredoka(fontSize: 20, fontWeight: FontWeight.w600, color: AppTheme.textSecondary),
-            ),
-            const SizedBox(height: 12),
-            ..._activities.map((act) => _buildRewardCard(act)),
-
-            const SizedBox(height: 40),
-
-            Text(
-              "App Settings",
-              style: GoogleFonts.fredoka(fontSize: 20, fontWeight: FontWeight.w600, color: AppTheme.textSecondary),
-            ),
-            const SizedBox(height: 12),
-            Card(
-              elevation: 1,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              child: Column(
-                children: [
-                  SwitchListTile(
-                    title: Text("Sound Effects", style: GoogleFonts.fredoka(fontSize: 16, fontWeight: FontWeight.w500)),
-                    subtitle: Text("Play sounds during activities", style: GoogleFonts.fredoka(fontSize: 13, color: AppTheme.textSecondary)),
-                    value: _soundEnabled,
-                    activeColor: AppTheme.secondary,
-                    onChanged: (v) => setState(() => _soundEnabled = v),
-                  ),
-                  const Divider(height: 1),
-                  SwitchListTile(
-                    title: Text("Dark Mode", style: GoogleFonts.fredoka(fontSize: 16, fontWeight: FontWeight.w500)),
-                    subtitle: Text("Reduce eye strain at night", style: GoogleFonts.fredoka(fontSize: 13, color: AppTheme.textSecondary)),
-                    value: _isDarkMode,
-                    activeColor: AppTheme.secondary,
-                    onChanged: (v) => setState(() => _isDarkMode = v),
-                  ),
-                  const Divider(height: 1),
-                  ListTile(
-                    leading: const Icon(Icons.lock_reset),
-                    title: Text("Change Password", style: GoogleFonts.fredoka(fontSize: 16, fontWeight: FontWeight.w500)),
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: const Text('Change password coming soon')),
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 40),
-
-            Center(
-              child: ElevatedButton.icon(
-                icon: const Icon(Icons.download_rounded),
-                label: Text("Download Progress Report", style: GoogleFonts.fredoka(fontSize: 16)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.primary,
-                  foregroundColor: AppTheme.onPrimary,
-                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 80.h),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: EdgeInsets.only(bottom: 20.h),
+                child: Text(
+                  "Hi! Let's plan today's learning",
+                  style: GoogleFonts.fredoka(fontSize: 24.sp, fontWeight: FontWeight.w700, color: AppTheme.textPrimary),
                 ),
-                onPressed: _downloadReport,
               ),
-            ),
-          ],
+
+              Text(
+                "Daily Schedule",
+                style: GoogleFonts.fredoka(fontSize: 20.sp, fontWeight: FontWeight.w600, color: AppTheme.textSecondary),
+              ),
+              SizedBox(height: 12.h),
+              ..._activities.map((act) => _buildSchedulerCard(act)),
+
+              SizedBox(height: 40.h),
+
+              Text(
+                "Reward Settings",
+                style: GoogleFonts.fredoka(fontSize: 20.sp, fontWeight: FontWeight.w600, color: AppTheme.textSecondary),
+              ),
+              SizedBox(height: 12.h),
+              ..._activities.map((act) => _buildRewardCard(act)),
+
+              SizedBox(height: 40.h),
+
+              Text(
+                "App Settings",
+                style: GoogleFonts.fredoka(fontSize: 20.sp, fontWeight: FontWeight.w600, color: AppTheme.textSecondary),
+              ),
+              SizedBox(height: 12.h),
+              Card(
+                elevation: 1,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20.r)),
+                child: Column(
+                  children: [
+                    SwitchListTile(
+                      title: Text("Sound Effects", style: GoogleFonts.fredoka(fontSize: 16.sp, fontWeight: FontWeight.w500)),
+                      subtitle: Text("Play voice instructions during activities", style: GoogleFonts.fredoka(fontSize: 13.sp, color: AppTheme.textSecondary)),
+                      value: _soundEnabled,
+                      activeColor: AppTheme.secondary,
+                      onChanged: (v) async {
+                        setState(() => _soundEnabled = v);
+                        final prefs = await SharedPreferences.getInstance();
+                        await prefs.setBool('sound_enabled', v);
+                      },
+                    ),
+                    const Divider(height: 1),
+                    SwitchListTile(
+                      title: Text("Dark Mode", style: GoogleFonts.fredoka(fontSize: 16.sp, fontWeight: FontWeight.w500)),
+                      subtitle: Text("Reduce eye strain at night", style: GoogleFonts.fredoka(fontSize: 13.sp, color: AppTheme.textSecondary)),
+                      value: _isDarkMode,
+                      activeColor: AppTheme.secondary,
+                      onChanged: (v) async {
+                        setState(() => _isDarkMode = v);
+                        final prefs = await SharedPreferences.getInstance();
+                        await prefs.setBool('dark_mode', v);
+                      },
+                    ),
+                    const Divider(height: 1),
+                    ListTile(
+                      leading: const Icon(Icons.lock_reset),
+                      title: Text("Change Password", style: GoogleFonts.fredoka(fontSize: 16.sp, fontWeight: FontWeight.w500)),
+                      onTap: _showChangePasswordDialog,
+                    ),
+                  ],
+                ),
+              ),
+
+              SizedBox(height: 40.h),
+
+              Center(
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.download_rounded),
+                  label: Text("Download Progress Report", style: GoogleFonts.fredoka(fontSize: 16.sp)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primary,
+                    foregroundColor: AppTheme.onPrimary,
+                    padding: EdgeInsets.symmetric(horizontal: 32.w, vertical: 16.h),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30.r)),
+                  ),
+                  onPressed: _downloadReport,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -348,21 +448,23 @@ class _ParentDashboardState extends State<ParentDashboard> {
 
   Widget _buildSchedulerCard(String activity) {
     final sessions = _schedules[activity] ?? [];
-    final text = sessions.isEmpty ? "No sessions scheduled" : "${sessions.length} session${sessions.length == 1 ? '' : 's'} today";
+    final text = sessions.isEmpty
+        ? "No sessions scheduled"
+        : "${sessions.length} session${sessions.length == 1 ? '' : 's'} today";
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      margin: EdgeInsets.only(bottom: 12.h),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20.r)),
       child: ListTile(
         leading: CircleAvatar(
           backgroundColor: AppTheme.primary.withOpacity(0.15),
-          radius: 28,
-          child: Icon(_getActivityIcon(activity), color: AppTheme.primary, size: 32),
+          radius: 28.r,
+          child: Icon(_getActivityIcon(activity), color: AppTheme.primary, size: 32.w),
         ),
-        title: Text(activity, style: GoogleFonts.fredoka(fontSize: 18, fontWeight: FontWeight.w700)),
-        subtitle: Text(text, style: GoogleFonts.fredoka(fontSize: 14, color: AppTheme.textSecondary)),
+        title: Text(activity, style: GoogleFonts.fredoka(fontSize: 18.sp, fontWeight: FontWeight.w700)),
+        subtitle: Text(text, style: GoogleFonts.fredoka(fontSize: 14.sp, color: AppTheme.textSecondary)),
         trailing: IconButton(
-          icon: const Icon(Icons.edit_calendar_rounded, color: AppTheme.primary),
+          icon: Icon(Icons.edit_calendar_rounded, color: AppTheme.primary, size: 28.w),
           onPressed: () => _openScheduleEditor(activity),
         ),
       ),
@@ -372,43 +474,46 @@ class _ParentDashboardState extends State<ParentDashboard> {
   Widget _buildRewardCard(String activity) {
     final path = _rewardImages[activity];
     return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      margin: EdgeInsets.only(bottom: 12.h),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20.r)),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(16.w),
         child: Row(
           children: [
             Container(
-              width: 64,
-              height: 64,
+              width: 64.w,
+              height: 64.h,
               decoration: BoxDecoration(
                 color: AppTheme.primary.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(16.r),
               ),
-              child: Icon(_getActivityIcon(activity), color: AppTheme.primary, size: 32),
+              child: Icon(_getActivityIcon(activity), color: AppTheme.primary, size: 32.w),
             ),
-            const SizedBox(width: 16),
+            SizedBox(width: 16.w),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(activity, style: GoogleFonts.fredoka(fontSize: 18, fontWeight: FontWeight.w700)),
-                  const SizedBox(height: 4),
+                  Text(activity, style: GoogleFonts.fredoka(fontSize: 18.sp, fontWeight: FontWeight.w700)),
+                  SizedBox(height: 4.h),
                   Text(
                     path == null ? "No reward set" : "Reward ready",
-                    style: GoogleFonts.fredoka(fontSize: 14, color: path == null ? AppTheme.textSecondary : AppTheme.success),
+                    style: GoogleFonts.fredoka(
+                      fontSize: 14.sp,
+                      color: path == null ? AppTheme.textSecondary : AppTheme.success,
+                    ),
                   ),
                 ],
               ),
             ),
             ElevatedButton.icon(
-              icon: const Icon(Icons.image_rounded, size: 18),
-              label: Text("Set", style: GoogleFonts.fredoka(fontSize: 14)),
+              icon: Icon(Icons.image_rounded, size: 18.w),
+              label: Text("Set", style: GoogleFonts.fredoka(fontSize: 14.sp)),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppTheme.primary,
                 foregroundColor: AppTheme.onPrimary,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20.r)),
+                padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
               ),
               onPressed: () => _pickRewardImage(activity),
             ),
@@ -429,7 +534,10 @@ class _ParentDashboardState extends State<ParentDashboard> {
   }
 }
 
-// Bottom Sheet Editor (unchanged)
+// ──────────────────────────────────────────────
+// Bottom Sheet Editor
+// ──────────────────────────────────────────────
+
 class _ScheduleEditorBottomSheet extends StatefulWidget {
   final String activityName;
   final List<Map<String, dynamic>> currentSessions;
@@ -481,7 +589,8 @@ class _ScheduleEditorBottomSheetState extends State<_ScheduleEditorBottomSheet> 
 
     if (picked != null) {
       setState(() {
-        _sessions[index]['startTime'] = '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
+        _sessions[index]['startTime'] =
+            '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
       });
     }
   }
@@ -493,69 +602,69 @@ class _ScheduleEditorBottomSheetState extends State<_ScheduleEditorBottomSheet> 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(context).viewInsets.bottom + 24),
+      padding: EdgeInsets.fromLTRB(24.w, 24.h, 24.w, MediaQuery.of(context).viewInsets.bottom + 24.h),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             "Schedule ${widget.activityName}",
-            style: GoogleFonts.fredoka(fontSize: 24, fontWeight: FontWeight.w700, color: AppTheme.textPrimary),
+            style: GoogleFonts.fredoka(fontSize: 24.sp, fontWeight: FontWeight.w700, color: AppTheme.textPrimary),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8.h),
           Text(
             "Add or change times and duration",
-            style: GoogleFonts.fredoka(fontSize: 15, color: AppTheme.textSecondary),
+            style: GoogleFonts.fredoka(fontSize: 15.sp, color: AppTheme.textSecondary),
           ),
-          const SizedBox(height: 24),
+          SizedBox(height: 24.h),
 
           if (_sessions.isEmpty)
             Center(
               child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 40),
+                padding: EdgeInsets.symmetric(vertical: 40.h),
                 child: Text(
                   "No sessions yet\nTap + to add one",
                   textAlign: TextAlign.center,
-                  style: GoogleFonts.fredoka(fontSize: 16, color: AppTheme.textSecondary),
+                  style: GoogleFonts.fredoka(fontSize: 16.sp, color: AppTheme.textSecondary),
                 ),
               ),
             )
           else
             ...List.generate(_sessions.length, (i) {
-              final session = _sessions[i];
+              final s = _sessions[i];
               return Padding(
-                padding: const EdgeInsets.only(bottom: 12),
+                padding: EdgeInsets.only(bottom: 12.h),
                 child: Row(
                   children: [
                     Expanded(
                       child: InkWell(
                         onTap: () => _pickTime(i),
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(16.r),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                          padding: EdgeInsets.symmetric(vertical: 12.h, horizontal: 16.w),
                           decoration: BoxDecoration(
                             color: AppTheme.surfaceVariant,
-                            borderRadius: BorderRadius.circular(16),
+                            borderRadius: BorderRadius.circular(16.r),
                           ),
                           child: Text(
-                            session['startTime'],
-                            style: GoogleFonts.fredoka(fontSize: 18, fontWeight: FontWeight.w600),
+                            s['startTime'],
+                            style: GoogleFonts.fredoka(fontSize: 18.sp, fontWeight: FontWeight.w600),
                           ),
                         ),
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    SizedBox(width: 12.w),
                     DropdownButton<int>(
-                      value: session['duration'],
+                      value: s['duration'],
                       items: List.generate(12, (i) => (i + 1) * 5)
-                          .map((min) => DropdownMenuItem(value: min, child: Text('$min min', style: GoogleFonts.fredoka())))
+                          .map((min) => DropdownMenuItem(value: min, child: Text('$min min', style: GoogleFonts.fredoka(fontSize: 16.sp))))
                           .toList(),
                       onChanged: (v) {
                         if (v != null) _changeDuration(i, v);
                       },
                     ),
                     IconButton(
-                      icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                      icon: Icon(Icons.delete_outline, color: Colors.redAccent, size: 24.w),
                       onPressed: () => _removeSession(i),
                     ),
                   ],
@@ -563,23 +672,23 @@ class _ScheduleEditorBottomSheetState extends State<_ScheduleEditorBottomSheet> 
               );
             }),
 
-          const SizedBox(height: 24),
+          SizedBox(height: 24.h),
 
           Row(
             children: [
               Expanded(
                 child: OutlinedButton.icon(
-                  icon: const Icon(Icons.add_rounded),
-                  label: Text("Add Session", style: GoogleFonts.fredoka()),
+                  icon: Icon(Icons.add_rounded, size: 20.w),
+                  label: Text("Add Session", style: GoogleFonts.fredoka(fontSize: 16.sp)),
                   style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    padding: EdgeInsets.symmetric(vertical: 16.h),
                     side: BorderSide(color: AppTheme.primary),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20.r)),
                   ),
                   onPressed: _addSession,
                 ),
               ),
-              const SizedBox(width: 16),
+              SizedBox(width: 16.w),
               Expanded(
                 child: ElevatedButton(
                   onPressed: () {
@@ -589,10 +698,10 @@ class _ScheduleEditorBottomSheetState extends State<_ScheduleEditorBottomSheet> 
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppTheme.primary,
                     foregroundColor: AppTheme.onPrimary,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                    padding: EdgeInsets.symmetric(vertical: 16.h),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20.r)),
                   ),
-                  child: Text("Save", style: GoogleFonts.fredoka(fontSize: 16, fontWeight: FontWeight.w700)),
+                  child: Text("Save", style: GoogleFonts.fredoka(fontSize: 16.sp, fontWeight: FontWeight.w700)),
                 ),
               ),
             ],

@@ -1,10 +1,12 @@
 // lib/screens/shapes_activity_screen.dart
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_tts/flutter_tts.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:nyota/theme.dart';
-import 'package:flutter_tts/flutter_tts.dart';   // ← NEW
 
 class ShapesActivityScreen extends StatefulWidget {
   final VoidCallback onSessionComplete;
@@ -17,10 +19,10 @@ class ShapesActivityScreen extends StatefulWidget {
   });
 
   @override
-  State<ShapesActivityScreen> createState() => _ShapesActivityScreenState();
+  State<ShapesActivityScreen> createState() => ShapesActivityScreenState();
 }
 
-class _ShapesActivityScreenState extends State<ShapesActivityScreen> {
+class ShapesActivityScreenState extends State<ShapesActivityScreen> {
   int currentTrial = 0;
   final int totalTrials = 10;
 
@@ -31,7 +33,6 @@ class _ShapesActivityScreenState extends State<ShapesActivityScreen> {
   int currentLevel = 1;
   int correctCount = 0;
 
-  // TTS
   late FlutterTts flutterTts;
 
   final List<String> _shapePool = [
@@ -43,28 +44,41 @@ class _ShapesActivityScreenState extends State<ShapesActivityScreen> {
   @override
   void initState() {
     super.initState();
+
+    // Lock to landscape
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
+
     _initTTS();
     _loadProgress();
     _generateNewTrial();
   }
 
-  Future<void> _initTTS() async {
-    flutterTts = FlutterTts();
-    await flutterTts.setLanguage("en-US");
-    await flutterTts.setSpeechRate(0.9);     // nice slow speed for kids
-    await flutterTts.setVolume(0.9);
-    await flutterTts.setPitch(1.0);
-  }
-
-  Future<void> _speak(String text) async {
-    await flutterTts.speak(text);
-  }
-
   @override
   void dispose() {
+    // Restore all orientations
+    SystemChrome.setPreferredOrientations(DeviceOrientation.values);
     flutterTts.stop();
     super.dispose();
   }
+
+  Future<void> _initTTS() async {
+    flutterTts = FlutterTts();
+    await flutterTts.setLanguage("en-US");
+    await flutterTts.setSpeechRate(0.75); // slower → clearer for children
+    await flutterTts.setVolume(0.95);
+    await flutterTts.setPitch(1.0);
+  }
+
+Future<void> _speak(String text) async {
+  final prefs = await SharedPreferences.getInstance();
+  final soundEnabled = prefs.getBool('sound_enabled') ?? true;
+  if (soundEnabled) {
+    await flutterTts.speak(text);
+  }
+}
 
   Future<void> _loadProgress() async {
     final prefs = await SharedPreferences.getInstance();
@@ -72,8 +86,8 @@ class _ShapesActivityScreenState extends State<ShapesActivityScreen> {
   }
 
   Future<void> _saveProgress() async {
-    final prefs = await SharedPreferences.getInstance();
     final accuracy = (correctCount / totalTrials * 100).round();
+    final prefs = await SharedPreferences.getInstance();
 
     if (accuracy >= 85 && currentLevel < 4) currentLevel++;
     else if (accuracy < 70 && currentLevel > 1) currentLevel--;
@@ -95,31 +109,25 @@ class _ShapesActivityScreenState extends State<ShapesActivityScreen> {
       showHint = false;
     });
 
-    // Auto-speak the new target (very helpful for 3-year-olds)
-    Future.delayed(const Duration(milliseconds: 400), () {
+    // Speak the target shape after a short delay
+    Future.delayed(const Duration(milliseconds: 800), () {
       _speak("This is a $targetShape");
     });
   }
 
   List<String> _getShapesForLevel(int level) {
     switch (level) {
-      case 1:
-        return ['circle', 'square', 'triangle', 'star'];
-      case 2:
-        return ['circle', 'square', 'triangle', 'star', 'rectangle', 'oval'];
-      case 3:
-        return ['circle', 'square', 'triangle', 'star', 'rectangle', 'oval', 'diamond', 'heart'];
-      case 4:
-        return _shapePool;
-      default:
-        return _shapePool;
+      case 1: return ['circle', 'square', 'triangle', 'star'];
+      case 2: return ['circle', 'square', 'triangle', 'star', 'rectangle', 'oval'];
+      case 3: return ['circle', 'square', 'triangle', 'star', 'rectangle', 'oval', 'diamond', 'heart'];
+      default: return _shapePool;
     }
   }
 
   void _handleTap(String selected) {
     if (selected == targetShape) {
       correctCount++;
-      _speak("Great job!");                    // positive sound feedback
+      _speak("Great job!");
       Future.delayed(const Duration(milliseconds: 900), () {
         currentTrial++;
         if (currentTrial >= totalTrials) {
@@ -131,32 +139,77 @@ class _ShapesActivityScreenState extends State<ShapesActivityScreen> {
       });
     } else {
       setState(() => showHint = true);
-      _speak("Try again");                     // gentle correction
+      _speak("Try again");
     }
   }
 
   Widget _buildShape(String shapeName, double size, {bool isHint = false}) {
     final color = isHint ? AppTheme.success : AppTheme.primary;
-    // (same shape builder as before – unchanged for brevity)
+
     switch (shapeName) {
       case 'circle':
-        return Container(width: size, height: size, decoration: BoxDecoration(shape: BoxShape.circle, color: color.withOpacity(0.25), border: Border.all(color: color, width: 6)));
+        return Container(
+          width: size.w,
+          height: size.h,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: color.withOpacity(0.25),
+            border: Border.all(color: color, width: 6.w),
+          ),
+        );
       case 'square':
-        return Container(width: size, height: size, decoration: BoxDecoration(color: color.withOpacity(0.25), borderRadius: BorderRadius.circular(12), border: Border.all(color: color, width: 6)));
+        return Container(
+          width: size.w,
+          height: size.h,
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.25),
+            borderRadius: BorderRadius.circular(12.r),
+            border: Border.all(color: color, width: 6.w),
+          ),
+        );
       case 'rectangle':
-        return Container(width: size * 1.4, height: size, decoration: BoxDecoration(color: color.withOpacity(0.25), borderRadius: BorderRadius.circular(12), border: Border.all(color: color, width: 6)));
+        return Container(
+          width: size.w * 1.4,
+          height: size.h,
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.25),
+            borderRadius: BorderRadius.circular(12.r),
+            border: Border.all(color: color, width: 6.w),
+          ),
+        );
       case 'triangle':
-        return CustomPaint(size: Size(size, size), painter: _TrianglePainter(color: color));
+        return CustomPaint(
+          size: Size(size.w, size.h),
+          painter: _TrianglePainter(color: color),
+        );
       case 'star':
-        return Icon(Icons.star_rounded, size: size, color: color);
+        return Icon(Icons.star_rounded, size: size.w, color: color);
       case 'oval':
-        return Container(width: size * 1.3, height: size * 0.8, decoration: BoxDecoration(shape: BoxShape.circle, color: color.withOpacity(0.25), border: Border.all(color: color, width: 6)));
+        return Container(
+          width: size.w * 1.3,
+          height: size.h * 0.8,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: color.withOpacity(0.25),
+            border: Border.all(color: color, width: 6.w),
+          ),
+        );
       case 'diamond':
-        return Transform.rotate(angle: pi / 4, child: Container(width: size * 0.9, height: size * 0.9, decoration: BoxDecoration(color: color.withOpacity(0.25), border: Border.all(color: color, width: 6))));
+        return Transform.rotate(
+          angle: pi / 4,
+          child: Container(
+            width: size.w * 0.9,
+            height: size.h * 0.9,
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.25),
+              border: Border.all(color: color, width: 6.w),
+            ),
+          ),
+        );
       case 'heart':
-        return Icon(Icons.favorite_rounded, size: size, color: color);
+        return Icon(Icons.favorite_rounded, size: size.w, color: color);
       default:
-        return Icon(Icons.circle, size: size, color: color);
+        return Icon(Icons.circle, size: size.w, color: color);
     }
   }
 
@@ -167,9 +220,9 @@ class _ShapesActivityScreenState extends State<ShapesActivityScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // Progress bar + counter + Help + SPEAKER buttons
+            // Progress + controls
             Padding(
-              padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
+              padding: EdgeInsets.fromLTRB(24.w, 16.h, 24.w, 8.h),
               child: Row(
                 children: [
                   Expanded(
@@ -177,20 +230,23 @@ class _ShapesActivityScreenState extends State<ShapesActivityScreen> {
                       value: (currentTrial + 1) / totalTrials,
                       backgroundColor: AppTheme.surfaceVariant,
                       color: AppTheme.primary,
-                      minHeight: 14,
-                      borderRadius: BorderRadius.circular(7),
+                      minHeight: 14.h,
+                      borderRadius: BorderRadius.circular(7.r),
                     ),
                   ),
-                  const SizedBox(width: 16),
-                  Text('${currentTrial + 1} / $totalTrials', style: GoogleFonts.fredoka(fontSize: 18, fontWeight: FontWeight.w600, color: AppTheme.primary)),
-                  const SizedBox(width: 8),
+                  SizedBox(width: 16.w),
+                  Text(
+                    '${currentTrial + 1} / $totalTrials',
+                    style: GoogleFonts.fredoka(fontSize: 18.sp, fontWeight: FontWeight.w600, color: AppTheme.primary),
+                  ),
+                  SizedBox(width: 8.w),
                   IconButton(
                     onPressed: () => setState(() => showHint = true),
-                    icon: const Icon(Icons.help_outline_rounded, color: AppTheme.primary, size: 28),
+                    icon: Icon(Icons.help_outline_rounded, color: AppTheme.primary, size: 28.w),
                   ),
-                  IconButton(                                      // ← NEW SPEAKER BUTTON
+                  IconButton(
                     onPressed: () => _speak("This is a $targetShape"),
-                    icon: const Icon(Icons.volume_up_rounded, color: AppTheme.primary, size: 28),
+                    icon: Icon(Icons.volume_up_rounded, color: AppTheme.primary, size: 28.w),
                   ),
                 ],
               ),
@@ -198,17 +254,22 @@ class _ShapesActivityScreenState extends State<ShapesActivityScreen> {
 
             const Spacer(),
 
+            // Big target shape
             Container(
-              width: 280,
-              height: 280,
-              decoration: BoxDecoration(color: AppTheme.primary.withOpacity(0.08), borderRadius: BorderRadius.circular(32)),
-              child: Center(child: _buildShape(targetShape, 220)),
+              width: 280.w,
+              height: 280.h,
+              decoration: BoxDecoration(
+                color: AppTheme.primary.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(32.r),
+              ),
+              child: Center(child: _buildShape(targetShape, 220.w)),
             ),
 
             const Spacer(),
 
+            // 3 choice cards
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+              padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 24.h),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: choices.map((shape) {
@@ -217,14 +278,17 @@ class _ShapesActivityScreenState extends State<ShapesActivityScreen> {
                     onTap: () => _handleTap(shape),
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 400),
-                      width: 120,
-                      height: 130,
+                      width: 120.w,
+                      height: 130.h,
                       decoration: BoxDecoration(
                         color: isHintedCorrect ? AppTheme.success.withOpacity(0.25) : AppTheme.surface,
-                        borderRadius: BorderRadius.circular(28),
-                        border: Border.all(color: isHintedCorrect ? AppTheme.success : AppTheme.surfaceVariant, width: isHintedCorrect ? 8 : 4),
+                        borderRadius: BorderRadius.circular(28.r),
+                        border: Border.all(
+                          color: isHintedCorrect ? AppTheme.success : AppTheme.surfaceVariant,
+                          width: isHintedCorrect ? 8.w : 4.w,
+                        ),
                       ),
-                      child: Center(child: _buildShape(shape, 78, isHint: isHintedCorrect)),
+                      child: Center(child: _buildShape(shape, 78.w, isHint: isHintedCorrect)),
                     ),
                   );
                 }).toList(),
@@ -239,15 +303,19 @@ class _ShapesActivityScreenState extends State<ShapesActivityScreen> {
   }
 }
 
-// Triangle painter (unchanged)
 class _TrianglePainter extends CustomPainter {
   final Color color;
+
   _TrianglePainter({required this.color});
 
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()..color = color..style = PaintingStyle.fill;
-    final path = Path()..moveTo(size.width / 2, 0)..lineTo(size.width, size.height)..lineTo(0, size.height)..close();
+    final path = Path()
+      ..moveTo(size.width / 2, 0)
+      ..lineTo(size.width, size.height)
+      ..lineTo(0, size.height)
+      ..close();
     canvas.drawPath(path, paint);
   }
 

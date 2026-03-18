@@ -6,11 +6,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:nyota/theme.dart';
 import '../services/storage_service.dart';
 
-// Correct imports for your existing activity screens
+// Activity screens
 import 'shapesactivity.dart';           // ShapesActivityScreen
-import 'countingmath.dart'; // CountingActivityScreen
-import 'basicmath.dart'; // BasicMathActivityScreen
-import 'advancemath.dart'; // AdvancedMathActivityScreen
+import 'countingmath.dart';             // CountingActivityScreen
+import 'basicmath.dart';               // BasicMathActivityScreen
+import 'advancemath.dart';             // AdvancedMathActivityScreen
 
 class ChildDashboard extends StatefulWidget {
   const ChildDashboard({super.key});
@@ -23,6 +23,7 @@ class _ChildDashboardState extends State<ChildDashboard> {
   String? _childName;
   String? _avatarPath;
   bool _isLoading = true;
+  bool _needsSetup = false;
 
   Map<String, List<Map<String, dynamic>>> _activitySchedules = {};
   Map<String, String?> _rewardImages = {};
@@ -38,15 +39,28 @@ class _ChildDashboardState extends State<ChildDashboard> {
   @override
   void initState() {
     super.initState();
-    _loadProfileAndSchedule();
+    _checkProfileAndLoad();
+  }
+
+  Future<void> _checkProfileAndLoad() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    _childName = prefs.getString('childName');
+    _avatarPath = prefs.getString('avatarPath');
+
+    if (_childName == null || _avatarPath == null) {
+      setState(() {
+        _needsSetup = true;
+        _isLoading = false;
+      });
+      return;
+    }
+
+    await _loadProfileAndSchedule();
   }
 
   Future<void> _loadProfileAndSchedule() async {
     final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _childName = prefs.getString('childName') ?? 'Friend';
-      _avatarPath = prefs.getString('avatarPath');
-    });
 
     final storage = StorageService();
     await storage.init();
@@ -89,18 +103,12 @@ class _ChildDashboardState extends State<ChildDashboard> {
       }
     }
 
-    // Sort by earliest start time
+    // Sort by earliest start time (optional)
     scheduled.sort((a, b) {
-      final timesA = (_activitySchedules[a] ?? [])
-          .map((s) => s['startTime'] as String? ?? '99:99')
-          .toList();
-      final timesB = (_activitySchedules[b] ?? [])
-          .map((s) => s['startTime'] as String? ?? '99:99')
-          .toList();
-
+      final timesA = (_activitySchedules[a] ?? []).map((s) => s['startTime'] as String? ?? '99:99').toList();
+      final timesB = (_activitySchedules[b] ?? []).map((s) => s['startTime'] as String? ?? '99:99').toList();
       final earliestA = timesA.isEmpty ? '99:99' : timesA.reduce((x, y) => x.compareTo(y) < 0 ? x : y);
       final earliestB = timesB.isEmpty ? '99:99' : timesB.reduce((x, y) => x.compareTo(y) < 0 ? x : y);
-
       return earliestA.compareTo(earliestB);
     });
 
@@ -122,14 +130,10 @@ class _ChildDashboardState extends State<ChildDashboard> {
 
   void _startActivity(String activityName) {
     Widget screen;
-
     switch (activityName) {
       case 'Shapes':
         screen = ShapesActivityScreen(
-          onSessionComplete: () {
-            _markCompleted(activityName);
-            Navigator.pop(context);
-          },
+          onSessionComplete: () => _markCompleted(activityName),
           rewardImagePath: _rewardImages[activityName],
         );
         break;
@@ -143,14 +147,12 @@ class _ChildDashboardState extends State<ChildDashboard> {
         screen = BasicMathActivityScreen(
           onSessionComplete: () => _markCompleted(activityName),
           rewardImagePath: _rewardImages[activityName],
-          sessionMode: 'mixed', // or 'addition' / 'subtraction'
         );
         break;
       case 'Advanced Math':
         screen = AdvancedMathActivityScreen(
           onSessionComplete: () => _markCompleted(activityName),
           rewardImagePath: _rewardImages[activityName],
-          sessionMode: 'mixed', // or 'multiplication' / 'division'
         );
         break;
       default:
@@ -159,7 +161,7 @@ class _ChildDashboardState extends State<ChildDashboard> {
 
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => screen),
+      MaterialPageRoute(builder: (_) => screen),
     );
   }
 
@@ -172,6 +174,10 @@ class _ChildDashboardState extends State<ChildDashboard> {
       );
     }
 
+    if (_needsSetup) {
+      return _buildOnboardingScreen();
+    }
+
     final scheduledActivities = _getTodaysScheduledActivities();
 
     return Scaffold(
@@ -179,7 +185,7 @@ class _ChildDashboardState extends State<ChildDashboard> {
       body: SafeArea(
         child: Column(
           children: [
-            // Avatar + name header
+            // Avatar + name
             Padding(
               padding: const EdgeInsets.all(20),
               child: Row(
@@ -187,7 +193,9 @@ class _ChildDashboardState extends State<ChildDashboard> {
                   CircleAvatar(
                     radius: 38,
                     backgroundColor: AppTheme.surface,
-                    backgroundImage: _avatarPath != null ? FileImage(File(_avatarPath!)) : null,
+                    backgroundImage: _avatarPath != null
+                        ? FileImage(File(_avatarPath!))
+                        : null,
                     child: _avatarPath == null
                         ? Icon(Icons.person, size: 40, color: AppTheme.textSecondary)
                         : null,
@@ -224,8 +232,129 @@ class _ChildDashboardState extends State<ChildDashboard> {
     );
   }
 
+  Widget _buildOnboardingScreen() {
+    final nameCtrl = TextEditingController();
+    int selectedAge = 6;
+    String? selectedAvatar;
+
+    final List<String> avatarOptions = [
+      'assets/images/avatar1.png',
+      'assets/images/avatar2.png',
+      'assets/images/avatar3.png',
+      'assets/images/avatar4.png',
+      'assets/images/avatar5.png',
+      'assets/images/avatar6.png',
+      'assets/images/avatar7.png',
+      'assets/images/avatar8.png',
+    ];
+
+    return Scaffold(
+      backgroundColor: AppTheme.background,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                "Hi there! Let's get to know you",
+                style: GoogleFonts.fredoka(fontSize: 28, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 32),
+
+              TextField(
+                controller: nameCtrl,
+                decoration: InputDecoration(
+                  labelText: "Your name",
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              Text("How old are you?", style: GoogleFonts.fredoka(fontSize: 18)),
+              Slider(
+                value: selectedAge.toDouble(),
+                min: 3,
+                max: 13,
+                divisions: 10,
+                label: selectedAge.toString(),
+                onChanged: (v) => setState(() => selectedAge = v.round()),
+              ),
+              const SizedBox(height: 24),
+
+              Text("Pick your avatar!", style: GoogleFonts.fredoka(fontSize: 18)),
+              SizedBox(
+                height: 120,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: avatarOptions.length,
+                  itemBuilder: (context, index) {
+                    final path = avatarOptions[index];
+                    final selected = selectedAvatar == path;
+                    return GestureDetector(
+                      onTap: () => setState(() => selectedAvatar = path),
+                      child: Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 8),
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: selected ? AppTheme.primary : Colors.transparent,
+                            width: 4,
+                          ),
+                        ),
+                        child: CircleAvatar(
+                          radius: 40,
+                          backgroundImage: AssetImage(path),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const Spacer(),
+
+              SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: ElevatedButton(
+                  onPressed: () {
+                    if (nameCtrl.text.trim().isNotEmpty && selectedAvatar != null) {
+                      _saveProfile(nameCtrl.text.trim(), selectedAge, selectedAvatar!);
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("Please fill everything!")),
+                      );
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary),
+                  child: Text("Let's Start!", style: GoogleFonts.fredoka(fontSize: 20, color: Colors.white)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _saveProfile(String name, int age, String avatar) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('childName', name);
+    await prefs.setInt('childAge', age);
+    await prefs.setString('avatarPath', avatar);
+
+    setState(() {
+      _childName = name;
+      _avatarPath = avatar;
+      _needsSetup = false;
+    });
+
+    await _loadProfileAndSchedule();
+  }
+
   Widget _buildActivityCard(String activityName, bool completed) {
-    final color = AppTheme.getActivityColor(activityName); // assuming you have this helper
+    final color = _getActivityColor(activityName);
     final timeHint = _getTimeHint(activityName);
 
     return GestureDetector(
@@ -299,6 +428,16 @@ class _ChildDashboardState extends State<ChildDashboard> {
       case 'Basic Math': return Icons.add_circle_rounded;
       case 'Advanced Math': return Icons.grid_view_rounded;
       default: return Icons.star_rounded;
+    }
+  }
+
+  Color _getActivityColor(String name) {
+    switch (name) {
+      case 'Shapes': return const Color(0xFFFF6B6B);
+      case 'Counting': return const Color(0xFF4ECDC4);
+      case 'Basic Math': return const Color(0xFF45B7D1);
+      case 'Advanced Math': return const Color(0xFF96CEB4);
+      default: return AppTheme.primary;
     }
   }
 

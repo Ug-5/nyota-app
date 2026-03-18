@@ -1,7 +1,9 @@
 // lib/screens/landing_screen.dart
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:nyota/theme.dart'; // 
+import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:nyota/theme.dart';
+
 class LandingPage extends StatefulWidget {
   const LandingPage({super.key});
 
@@ -20,30 +22,27 @@ class _LandingPageState extends State<LandingPage> with SingleTickerProviderStat
   @override
   void initState() {
     super.initState();
-
     letters.addAll(title.split(''));
 
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 2800), // total animation time
+      duration: const Duration(milliseconds: 2800),
     );
 
-    // Staggered letter animations
     _letterAnimations = List.generate(
       letters.length,
       (index) => Tween<double>(begin: 0.0, end: 1.0).animate(
         CurvedAnimation(
           parent: _controller,
           curve: Interval(
-            0.1 * index,           // delay each letter
-            0.1 * index + 0.60,    // each letter takes ~450ms
+            0.1 * index,
+            0.1 * index + 0.60,
             curve: Curves.easeOutCubic,
           ),
         ),
       ),
     );
 
-    // Tagline appears after most letters
     _taglineAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _controller,
@@ -51,7 +50,6 @@ class _LandingPageState extends State<LandingPage> with SingleTickerProviderStat
       ),
     );
 
-    // Start animation once
     _controller.forward();
   }
 
@@ -73,61 +71,63 @@ class _LandingPageState extends State<LandingPage> with SingleTickerProviderStat
               const Spacer(flex: 2),
 
               // Animated NYOTA title
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: List.generate(letters.length, (index) {
-                  return AnimatedBuilder(
-                    animation: _letterAnimations[index],
-                    builder: (context, child) {
-                      final value = _letterAnimations[index].value;
-                      return Opacity(
-                        opacity: value,
-                        child: Transform.scale(
-                          scale: 0.85 + (value * 0.15), // gentle pop-in scale
-                          child: child,
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 32.w),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: List.generate(letters.length, (index) {
+                      return AnimatedBuilder(
+                        animation: _letterAnimations[index],
+                        builder: (context, child) {
+                          final value = _letterAnimations[index].value;
+                          return Opacity(
+                            opacity: value,
+                            child: Transform.scale(
+                              scale: 0.85 + (value * 0.15),
+                              child: child,
+                            ),
+                          );
+                        },
+                        child: Text(
+                          letters[index],
+                          style: GoogleFonts.fredoka(
+                            fontSize: 85.sp,
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.primary,
+                            height: 1.00,
+                            letterSpacing: -1.2.sp,
+                          ),
                         ),
                       );
-                    },
-                    child: Text(
-                      letters[index],
-                      style: GoogleFonts.fredoka(
-                        fontSize: 85,
-                        fontWeight: FontWeight.w600, // bold but not super thick
-                        color: AppTheme.primary,
-                        height: 1.00,
-                        letterSpacing: -1.2,
-                      ),
-                    ),
-                  );
-                }),
-              ),
-
-              const SizedBox(height: 12),
-
-              // "Math is Easy" fades in gently
-              FadeTransition(
-                opacity: _taglineAnimation,
-                child: Text(
-                  "Math is Easy",
-                  style: GoogleFonts.fredoka(
-                    fontSize: 30,
-                    fontWeight: FontWeight.w400,
-                    color: AppTheme.textSecondary,
-                    letterSpacing: 0.4,
+                    }),
                   ),
                 ),
               ),
 
-              const Spacer(flex: 2),
+              SizedBox(height: 12.h),
 
-              // Hero cute star (your chosen calm star asset)
-              
+              // Tagline
+              FadeTransition(
+                opacity: _taglineAnimation,
+                child: Text(
+                  "Math is Easy",
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.fredoka(
+                    fontSize: 28.sp,
+                    fontWeight: FontWeight.w400,
+                    color: AppTheme.textSecondary,
+                    letterSpacing: 0.4.sp,
+                  ),
+                ),
+              ),
 
-              const Spacer(flex: 2),
+              const Spacer(flex: 3),
 
-              // Buttons – smaller, side by side
+              // Buttons
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 32.0),
+                padding: EdgeInsets.symmetric(horizontal: 28.w),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -139,7 +139,7 @@ class _LandingPageState extends State<LandingPage> with SingleTickerProviderStat
                         onTap: () => Navigator.pushNamed(context, '/login'),
                       ),
                     ),
-                    const SizedBox(width: 16),
+                    SizedBox(width: 16.w),
                     Expanded(
                       child: _buildButton(
                         label: 'Sign Up',
@@ -169,7 +169,7 @@ class _LandingPageState extends State<LandingPage> with SingleTickerProviderStat
     bool isPrimary = false,
   }) {
     return SizedBox(
-      height: 54, // slightly smaller than before
+      height: 54.h,
       child: ElevatedButton(
         onPressed: onTap,
         style: ElevatedButton.styleFrom(
@@ -178,14 +178,16 @@ class _LandingPageState extends State<LandingPage> with SingleTickerProviderStat
           elevation: isPrimary ? 3 : 1,
           shadowColor: AppTheme.primary.withOpacity(0.22),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(28),
+            borderRadius: BorderRadius.circular(28.r),
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 24),
+          padding: EdgeInsets.symmetric(horizontal: 12.w),
         ),
         child: Text(
           label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: GoogleFonts.fredoka(
-            fontSize: 19,
+            fontSize: 18.sp,
             fontWeight: FontWeight.w600,
           ),
         ),

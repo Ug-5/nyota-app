@@ -1,6 +1,7 @@
 // lib/screens/signup_screen.dart
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:nyota/theme.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -54,7 +55,7 @@ class _SignupScreenState extends State<SignupScreen> {
       builder: (context) => AlertDialog(
         title: Text(
           'Terms & Conditions',
-          style: GoogleFonts.fredoka(fontWeight: FontWeight.w700),
+          style: GoogleFonts.fredoka(fontWeight: FontWeight.w700, fontSize: 20.sp),
         ),
         content: SingleChildScrollView(
           child: Column(
@@ -75,7 +76,7 @@ class _SignupScreenState extends State<SignupScreen> {
                 'We want every child to love learning math!\n'
                 'Thank you for being part of NYOTA.\n\n'
                 'Last updated: March 2026',
-                style: GoogleFonts.fredoka(fontSize: 15, height: 1.4),
+                style: GoogleFonts.fredoka(fontSize: 15.sp, height: 1.4),
               ),
             ],
           ),
@@ -83,10 +84,11 @@ class _SignupScreenState extends State<SignupScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Close', style: GoogleFonts.fredoka()),
+            child: Text('Close', style: GoogleFonts.fredoka(fontSize: 16.sp)),
           ),
         ],
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24.r)),
+        contentPadding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 20.h),
       ),
     );
   }
@@ -181,14 +183,18 @@ class _SignupScreenState extends State<SignupScreen> {
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
+            padding: EdgeInsets.symmetric(horizontal: 28.w, vertical: 16.h),
             child: Container(
-              padding: const EdgeInsets.fromLTRB(24, 40, 24, 32),
+              padding: EdgeInsets.fromLTRB(24.w, 40.h, 24.w, 32.h),
               decoration: BoxDecoration(
                 color: AppTheme.surface,
-                borderRadius: BorderRadius.circular(32),
+                borderRadius: BorderRadius.circular(32.r),
                 boxShadow: [
-                  BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 20, offset: const Offset(0, 8)),
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.06),
+                    blurRadius: 20.r,
+                    offset: Offset(0, 8.h),
+                  ),
                 ],
               ),
               child: Form(
@@ -198,16 +204,16 @@ class _SignupScreenState extends State<SignupScreen> {
                   children: [
                     Text(
                       'Create Parent Account',
-                      style: GoogleFonts.fredoka(fontSize: 30, fontWeight: FontWeight.w800, color: AppTheme.textPrimary),
+                      style: GoogleFonts.fredoka(fontSize: 30.sp, fontWeight: FontWeight.w800, color: AppTheme.textPrimary),
                       textAlign: TextAlign.center,
                     ),
-                    const SizedBox(height: 8),
+                    SizedBox(height: 8.h),
                     Text(
                       'For your child’s safe learning journey',
-                      style: GoogleFonts.fredoka(fontSize: 16, color: AppTheme.textSecondary),
+                      style: GoogleFonts.fredoka(fontSize: 16.sp, color: AppTheme.textSecondary),
                       textAlign: TextAlign.center,
                     ),
-                    const SizedBox(height: 40),
+                    SizedBox(height: 40.h),
 
                     _buildTextField(
                       controller: _emailController,
@@ -222,7 +228,7 @@ class _SignupScreenState extends State<SignupScreen> {
                         return null;
                       },
                     ),
-                    const SizedBox(height: 20),
+                    SizedBox(height: 20.h),
 
                     _buildTextField(
                       controller: _phoneController,
@@ -237,7 +243,7 @@ class _SignupScreenState extends State<SignupScreen> {
                         return null;
                       },
                     ),
-                    const SizedBox(height: 20),
+                    SizedBox(height: 20.h),
 
                     _buildTextField(
                       controller: _passwordController,
@@ -254,13 +260,13 @@ class _SignupScreenState extends State<SignupScreen> {
                     ),
 
                     if (_passwordStrength.isNotEmpty) ...[
-                      const SizedBox(height: 8),
+                      SizedBox(height: 8.h),
                       Align(
                         alignment: Alignment.centerLeft,
                         child: Text(
                           'Password strength: $_passwordStrength',
                           style: GoogleFonts.fredoka(
-                            fontSize: 14,
+                            fontSize: 14.sp,
                             color: _passwordStrength == 'Strong'
                                 ? AppTheme.success
                                 : _passwordStrength == 'Medium'
@@ -271,7 +277,7 @@ class _SignupScreenState extends State<SignupScreen> {
                       ),
                     ],
 
-                    const SizedBox(height: 24),
+                    SizedBox(height: 24.h),
 
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -287,14 +293,14 @@ class _SignupScreenState extends State<SignupScreen> {
                             children: [
                               Text(
                                 'I agree to the ',
-                                style: GoogleFonts.fredoka(fontSize: 14, color: AppTheme.textSecondary),
+                                style: GoogleFonts.fredoka(fontSize: 14.sp, color: AppTheme.textSecondary),
                               ),
                               GestureDetector(
                                 onTap: _showTermsDialog,
                                 child: Text(
                                   'Terms & Conditions',
                                   style: GoogleFonts.fredoka(
-                                    fontSize: 14,
+                                    fontSize: 14.sp,
                                     color: AppTheme.primary,
                                     fontWeight: FontWeight.w600,
                                     decoration: TextDecoration.underline,
@@ -307,44 +313,44 @@ class _SignupScreenState extends State<SignupScreen> {
                       ],
                     ),
 
-                    const SizedBox(height: 32),
+                    SizedBox(height: 32.h),
 
                     SizedBox(
                       width: double.infinity,
-                      height: 60,
+                      height: 60.h,
                       child: ElevatedButton(
                         onPressed: _isLoading ? null : _handleSignup,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppTheme.primary,
                           foregroundColor: AppTheme.onPrimary,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30.r)),
                           elevation: 2,
                         ),
                         child: _isLoading
-                            ? const SizedBox(
-                                height: 24,
-                                width: 24,
-                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3),
+                            ? SizedBox(
+                                height: 24.h,
+                                width: 24.w,
+                                child: const CircularProgressIndicator(color: Colors.white, strokeWidth: 3),
                               )
                             : Text(
                                 "LET'S GET STARTED",
-                                style: GoogleFonts.fredoka(fontSize: 18, fontWeight: FontWeight.w700),
+                                style: GoogleFonts.fredoka(fontSize: 18.sp, fontWeight: FontWeight.w700),
                               ),
                       ),
                     ),
 
-                    const SizedBox(height: 24),
+                    SizedBox(height: 24.h),
 
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text('Already have an account? ', style: GoogleFonts.fredoka(fontSize: 15, color: AppTheme.textSecondary)),
+                        Text('Already have an account? ', style: GoogleFonts.fredoka(fontSize: 15.sp, color: AppTheme.textSecondary)),
                         GestureDetector(
                           onTap: () => Navigator.pushNamed(context, '/login'),
                           child: Text(
                             'Log in',
                             style: GoogleFonts.fredoka(
-                              fontSize: 15,
+                              fontSize: 15.sp,
                               fontWeight: FontWeight.w700,
                               color: AppTheme.primary,
                               decoration: TextDecoration.underline,
@@ -377,25 +383,29 @@ class _SignupScreenState extends State<SignupScreen> {
       obscureText: isPassword ? _obscurePassword : false,
       validator: validator,
       autovalidateMode: AutovalidateMode.onUserInteraction,
-      style: GoogleFonts.fredoka(fontSize: 16, color: AppTheme.textPrimary),
+      style: GoogleFonts.fredoka(fontSize: 16.sp, color: AppTheme.textPrimary),
       decoration: InputDecoration(
         hintText: label,
-        hintStyle: GoogleFonts.fredoka(fontSize: 16, color: AppTheme.textSecondary),
-        prefixIcon: Icon(icon, color: AppTheme.textSecondary, size: 24),
+        hintStyle: GoogleFonts.fredoka(fontSize: 16.sp, color: AppTheme.textSecondary),
+        prefixIcon: Icon(icon, color: AppTheme.textSecondary, size: 24.w),
         suffixIcon: isPassword
             ? IconButton(
-                icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility, color: AppTheme.textSecondary),
+                icon: Icon(
+                  _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                  color: AppTheme.textSecondary,
+                  size: 24.w,
+                ),
                 onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
               )
             : null,
         filled: true,
         fillColor: AppTheme.surfaceVariant,
-        contentPadding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide.none),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide.none),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide(color: AppTheme.primary, width: 2.5)),
-        errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide(color: AppTheme.error)),
-        focusedErrorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide(color: AppTheme.error, width: 2.5)),
+        contentPadding: EdgeInsets.symmetric(vertical: 18.h, horizontal: 16.w),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(20.r), borderSide: BorderSide.none),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(20.r), borderSide: BorderSide.none),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(20.r), borderSide: BorderSide(color: AppTheme.primary, width: 2.5)),
+        errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(20.r), borderSide: BorderSide(color: AppTheme.error)),
+        focusedErrorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(20.r), borderSide: BorderSide(color: AppTheme.error, width: 2.5)),
       ),
     );
   }
