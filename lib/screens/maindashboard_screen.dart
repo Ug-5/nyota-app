@@ -2,13 +2,11 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:nyota/theme.dart';
-import 'parentdashboard_screen.dart';
-import 'chillddashboard.dart';
+import 'parentdashboard.dart';
+import 'childdashboard.dart';  // ← kept your original import
 
 class MainDashboardScreen extends StatefulWidget {
-  final String? userPassword;
-
-  const MainDashboardScreen({super.key, this.userPassword});
+  const MainDashboardScreen({super.key});  // ← removed userPassword
 
   @override
   State<MainDashboardScreen> createState() => _MainDashboardScreenState();
@@ -16,7 +14,7 @@ class MainDashboardScreen extends StatefulWidget {
 
 class _MainDashboardScreenState extends State<MainDashboardScreen>
     with TickerProviderStateMixin {
-  late AnimationController _starController;
+  AnimationController? _starController;
 
   @override
   void initState() {
@@ -29,109 +27,23 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
 
   @override
   void dispose() {
-    _starController.dispose();
+    _starController?.dispose();
     super.dispose();
   }
 
-  void _showPasswordDialog(double scaleFactor) {
-    final ctrl = TextEditingController();
-    bool obscure = true;
-
-    showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSt) => AlertDialog(
-          backgroundColor: AppTheme.surface,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-          title: Text(
-            'Parent Access',
-            style: GoogleFonts.fredoka(
-              fontSize: 22 * scaleFactor,
-              fontWeight: FontWeight.w700,
-              color: AppTheme.textPrimary,
-            ),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Enter password to access parent dashboard',
-                style: GoogleFonts.fredoka(
-                  fontSize: 15 * scaleFactor,
-                  color: AppTheme.textSecondary,
-                ),
-              ),
-              SizedBox(height: 20 * scaleFactor),
-              TextField(
-                controller: ctrl,
-                obscureText: obscure,
-                style: GoogleFonts.fredoka(fontSize: 16 * scaleFactor),
-                decoration: InputDecoration(
-                  hintText: 'Password',
-                  filled: true,
-                  fillColor: AppTheme.surfaceVariant,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide.none,
-                  ),
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      obscure ? Icons.visibility_off : Icons.visibility,
-                      color: AppTheme.textSecondary,
-                      size: 20 * scaleFactor,
-                    ),
-                    onPressed: () => setSt(() => obscure = !obscure),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: Text(
-                'Cancel',
-                style: GoogleFonts.fredoka(fontSize: 14 * scaleFactor, color: AppTheme.textSecondary),
-              ),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.primary,
-                foregroundColor: AppTheme.onPrimary,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              ),
-              onPressed: () {
-                // Logic: verify password (fallback to 'admin' if null for safety)
-                if (ctrl.text == (widget.userPassword ?? 'admin')) {
-                  Navigator.pop(ctx);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const ParentDashboard()),
-                  );
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: const Text('Incorrect password'),
-                      backgroundColor: AppTheme.error,
-                    ),
-                  );
-                }
-              },
-              child: Text(
-                'Enter',
-                style: GoogleFonts.fredoka(fontWeight: FontWeight.w600, fontSize: 14 * scaleFactor),
-              ),
-            ),
-          ],
-        ),
-      ),
+  // ──────────────────────────────────────────────
+  // NEW: Direct navigation (no more password dialog)
+  // The ParentDashboard will now handle PIN setup/verification itself
+  // ──────────────────────────────────────────────
+  void _openParentDashboard() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ParentDashboard()),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    // 1. Calculate responsiveness variables
     final Size size = MediaQuery.of(context).size;
     final double screenWidth = size.width;
     final double scaleFactor = (screenWidth / 375).clamp(0.8, 1.2);
@@ -148,7 +60,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
                 Container(
                   padding: EdgeInsets.symmetric(
                     horizontal: 24 * scaleFactor,
-                    vertical: 40 * scaleFactor
+                    vertical: 40 * scaleFactor,
                   ),
                   decoration: BoxDecoration(
                     color: AppTheme.surface,
@@ -176,7 +88,6 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
                       ),
                       SizedBox(height: 40 * scaleFactor),
 
-                      // 2. Flexible Row using Expanded
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
@@ -185,7 +96,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
                               imageAsset: 'assets/images/parent.png',
                               label: 'Parent',
                               scaleFactor: scaleFactor,
-                              onTap: () => _showPasswordDialog(scaleFactor),
+                              onTap: _openParentDashboard,  // ← now direct
                             ),
                           ),
                           SizedBox(width: 16 * scaleFactor),
@@ -223,7 +134,6 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
       onTap: onTap,
       child: Column(
         children: [
-          // Use AspectRatio to keep the card square regardless of width
           AspectRatio(
             aspectRatio: 1.0,
             child: Container(
@@ -245,7 +155,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
             ),
           ),
           SizedBox(height: 12 * scaleFactor),
-          FittedBox( // Prevents text overflow on small devices
+          FittedBox(
             fit: BoxFit.scaleDown,
             child: Text(
               label,

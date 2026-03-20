@@ -1,4 +1,3 @@
-// lib/screens/child_dashboard.dart
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -7,10 +6,10 @@ import 'package:nyota/theme.dart';
 import '../services/storage_service.dart';
 
 // Activity screens
-import 'shapesactivity.dart';           // ShapesActivityScreen
-import 'countingmath.dart';             // CountingActivityScreen
-import 'basicmath.dart';               // BasicMathActivityScreen
-import 'advancemath.dart';             // AdvancedMathActivityScreen
+import 'shapesactivity.dart';
+import 'countingmath.dart';
+import 'basicmath.dart';
+import 'advancemath.dart';
 
 class ChildDashboard extends StatefulWidget {
   const ChildDashboard({super.key});
@@ -24,6 +23,11 @@ class _ChildDashboardState extends State<ChildDashboard> {
   String? _avatarPath;
   bool _isLoading = true;
   bool _needsSetup = false;
+
+  // Onboarding variables
+  int _selectedAge = 6;
+  String? _selectedAvatar;
+  final TextEditingController _nameController = TextEditingController();
 
   Map<String, List<Map<String, dynamic>>> _activitySchedules = {};
   Map<String, String?> _rewardImages = {};
@@ -40,6 +44,12 @@ class _ChildDashboardState extends State<ChildDashboard> {
   void initState() {
     super.initState();
     _checkProfileAndLoad();
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
   }
 
   Future<void> _checkProfileAndLoad() async {
@@ -61,7 +71,6 @@ class _ChildDashboardState extends State<ChildDashboard> {
 
   Future<void> _loadProfileAndSchedule() async {
     final prefs = await SharedPreferences.getInstance();
-
     final storage = StorageService();
     await storage.init();
 
@@ -78,8 +87,6 @@ class _ChildDashboardState extends State<ChildDashboard> {
         _completedToday = completedMap;
         _isLoading = false;
       });
-
-      print("Child dashboard loaded: ${_activitySchedules.length} activities scheduled");
     } catch (e) {
       print("Error loading child data: $e");
       setState(() => _isLoading = false);
@@ -103,7 +110,6 @@ class _ChildDashboardState extends State<ChildDashboard> {
       }
     }
 
-    // Sort by earliest start time (optional)
     scheduled.sort((a, b) {
       final timesA = (_activitySchedules[a] ?? []).map((s) => s['startTime'] as String? ?? '99:99').toList();
       final timesB = (_activitySchedules[b] ?? []).map((s) => s['startTime'] as String? ?? '99:99').toList();
@@ -124,45 +130,72 @@ class _ChildDashboardState extends State<ChildDashboard> {
         .reduce((a, b) => a.compareTo(b) < 0 ? a : b);
 
     final duration = sessions.isNotEmpty ? sessions.first['duration'] as int? ?? 15 : 15;
-
-    return '$earliest • ${duration} min';
+    return '$earliest • $duration min';
   }
 
   void _startActivity(String activityName) {
-    Widget screen;
+    print("startActivity called → $activityName"); // debug - remove later
+
     switch (activityName) {
       case 'Shapes':
-        screen = ShapesActivityScreen(
-          onSessionComplete: () => _markCompleted(activityName),
-          rewardImagePath: _rewardImages[activityName],
+        print("Launching ShapesActivityScreen");
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ShapesActivityScreen(
+              onSessionComplete: () => _markCompleted(activityName),
+              rewardImagePath: _rewardImages[activityName],
+            ),
+          ),
         );
-        break;
+        return;
+
       case 'Counting':
-        screen = CountingActivityScreen(
-          onSessionComplete: () => _markCompleted(activityName),
-          rewardImagePath: _rewardImages[activityName],
+        print("Launching CountingActivityScreen");
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => CountingActivityScreen(
+              onSessionComplete: () => _markCompleted(activityName),
+              rewardImagePath: _rewardImages[activityName],
+            ),
+          ),
         );
-        break;
+        return;
+
       case 'Basic Math':
-        screen = BasicMathActivityScreen(
-          onSessionComplete: () => _markCompleted(activityName),
-          rewardImagePath: _rewardImages[activityName],
+        print("Launching BasicMathActivityScreen");
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => BasicMathActivityScreen(
+              onSessionComplete: () => _markCompleted(activityName),
+              rewardImagePath: _rewardImages[activityName],
+            ),
+          ),
         );
-        break;
+        return;
+
       case 'Advanced Math':
-        screen = AdvancedMathActivityScreen(
-          onSessionComplete: () => _markCompleted(activityName),
-          rewardImagePath: _rewardImages[activityName],
+        print("Launching AdvancedMathActivityScreen");
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => AdvancedMathActivityScreen(
+              onSessionComplete: () => _markCompleted(activityName),
+              rewardImagePath: _rewardImages[activityName],
+            ),
+          ),
         );
-        break;
+        return;
+
       default:
+        print("Unknown activity name: $activityName");
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Activity '$activityName' not implemented yet")),
+        );
         return;
     }
-
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => screen),
-    );
   }
 
   @override
@@ -185,7 +218,7 @@ class _ChildDashboardState extends State<ChildDashboard> {
       body: SafeArea(
         child: Column(
           children: [
-            // Avatar + name
+            // Header with avatar + greeting
             Padding(
               padding: const EdgeInsets.all(20),
               child: Row(
@@ -193,16 +226,14 @@ class _ChildDashboardState extends State<ChildDashboard> {
                   CircleAvatar(
                     radius: 38,
                     backgroundColor: AppTheme.surface,
-                    backgroundImage: _avatarPath != null
-                        ? FileImage(File(_avatarPath!))
-                        : null,
+                    backgroundImage: _avatarPath != null ? AssetImage(_avatarPath!) : null,
                     child: _avatarPath == null
-                        ? Icon(Icons.person, size: 40, color: AppTheme.textSecondary)
+                        ? const Icon(Icons.person, size: 40, color: AppTheme.textSecondary)
                         : null,
                   ),
                   const SizedBox(width: 16),
                   Text(
-                    _childName ?? 'Friend',
+                    "Hi ${_childName ?? 'Friend'}!",
                     style: GoogleFonts.fredoka(
                       fontSize: 28,
                       fontWeight: FontWeight.w700,
@@ -233,10 +264,6 @@ class _ChildDashboardState extends State<ChildDashboard> {
   }
 
   Widget _buildOnboardingScreen() {
-    final nameCtrl = TextEditingController();
-    int selectedAge = 6;
-    String? selectedAvatar;
-
     final List<String> avatarOptions = [
       'assets/images/avatar1.png',
       'assets/images/avatar2.png',
@@ -263,7 +290,7 @@ class _ChildDashboardState extends State<ChildDashboard> {
               const SizedBox(height: 32),
 
               TextField(
-                controller: nameCtrl,
+                controller: _nameController,
                 decoration: InputDecoration(
                   labelText: "Your name",
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
@@ -273,12 +300,14 @@ class _ChildDashboardState extends State<ChildDashboard> {
 
               Text("How old are you?", style: GoogleFonts.fredoka(fontSize: 18)),
               Slider(
-                value: selectedAge.toDouble(),
+                value: _selectedAge.toDouble(),
                 min: 3,
                 max: 13,
                 divisions: 10,
-                label: selectedAge.toString(),
-                onChanged: (v) => setState(() => selectedAge = v.round()),
+                label: _selectedAge.toString(),
+                onChanged: (v) {
+                  setState(() => _selectedAge = v.round());
+                },
               ),
               const SizedBox(height: 24),
 
@@ -290,9 +319,9 @@ class _ChildDashboardState extends State<ChildDashboard> {
                   itemCount: avatarOptions.length,
                   itemBuilder: (context, index) {
                     final path = avatarOptions[index];
-                    final selected = selectedAvatar == path;
+                    final selected = _selectedAvatar == path;
                     return GestureDetector(
-                      onTap: () => setState(() => selectedAvatar = path),
+                      onTap: () => setState(() => _selectedAvatar = path),
                       child: Container(
                         margin: const EdgeInsets.symmetric(horizontal: 8),
                         padding: const EdgeInsets.all(8),
@@ -319,8 +348,12 @@ class _ChildDashboardState extends State<ChildDashboard> {
                 height: 56,
                 child: ElevatedButton(
                   onPressed: () {
-                    if (nameCtrl.text.trim().isNotEmpty && selectedAvatar != null) {
-                      _saveProfile(nameCtrl.text.trim(), selectedAge, selectedAvatar!);
+                    if (_nameController.text.trim().isNotEmpty && _selectedAvatar != null) {
+                      _saveProfile(
+                        _nameController.text.trim(),
+                        _selectedAge,
+                        _selectedAvatar!,
+                      );
                     } else {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text("Please fill everything!")),
@@ -414,7 +447,7 @@ class _ChildDashboardState extends State<ChildDashboard> {
               ),
             ),
             if (completed)
-              Icon(Icons.check_circle_rounded, color: AppTheme.success, size: 40),
+              const Icon(Icons.check_circle_rounded, color: AppTheme.success, size: 40),
           ],
         ),
       ),

@@ -12,12 +12,14 @@ class AdvancedMathActivityScreen extends StatefulWidget {
   final VoidCallback onSessionComplete;
   final String? rewardImagePath;
   final String sessionMode;
+  final int? maxDurationMinutes; // ← NEW: passed from parent/child dashboard
 
   const AdvancedMathActivityScreen({
     super.key,
     required this.onSessionComplete,
     this.rewardImagePath,
     this.sessionMode = 'mixed',
+    this.maxDurationMinutes,
   });
 
   @override
@@ -26,28 +28,32 @@ class AdvancedMathActivityScreen extends StatefulWidget {
 
 class _AdvancedMathActivityScreenState extends State<AdvancedMathActivityScreen> {
   int currentTrial = 0;
-  final int totalTrials = 10;
+  final int questionsPerLevel = 10;
   int currentLevel = 1;
-  int correctCount = 0;
+  final int maxLevel = 4;
+  int correctInLevel = 0;
+  int totalCorrect = 0;
 
-  late int a, b, answer;
+  int a = 2, b = 3, answer = 6;
   bool isMultiplication = true;
-  late List<int> choices;
+  List<int> choices = [];
   bool showHint = false;
 
-  late FlutterTts flutterTts;
+  FlutterTts flutterTts = FlutterTts();
+  DateTime? sessionStartTime;
 
   @override
   void initState() {
     super.initState();
     _initTTS();
+    sessionStartTime = DateTime.now();
 
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.landscapeLeft,
       DeviceOrientation.landscapeRight,
     ]);
 
-    _loadLevel().then((_) => _generateNewTrial()); // ← uses correct saved level
+    _loadLevel().then((_) => _generateNewTrial());
   }
 
   Future<void> _initTTS() async {
@@ -59,22 +65,17 @@ class _AdvancedMathActivityScreenState extends State<AdvancedMathActivityScreen>
   }
 
   Future<void> _speak(String text) async {
-  final prefs = await SharedPreferences.getInstance();
-  final soundEnabled = prefs.getBool('sound_enabled') ?? true;
-  if (soundEnabled) {
-    await flutterTts.speak(text);
+    final prefs = await SharedPreferences.getInstance();
+    final soundEnabled = prefs.getBool('sound_enabled') ?? true;
+    if (soundEnabled) {
+      await flutterTts.speak(text);
+    }
   }
-}
 
   @override
   void dispose() {
     flutterTts.stop();
-
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.portraitUp,
-      DeviceOrientation.landscapeLeft,
-      DeviceOrientation.landscapeRight,
-    ]);
+    SystemChrome.setPreferredOrientations(DeviceOrientation.values);
     super.dispose();
   }
 
@@ -84,20 +85,34 @@ class _AdvancedMathActivityScreenState extends State<AdvancedMathActivityScreen>
   }
 
   Future<void> _saveLevel() async {
-    final accuracy = (correctCount / totalTrials * 100).round();
     final prefs = await SharedPreferences.getInstance();
-    if (accuracy >= 85 && currentLevel < 4) currentLevel++;
-    else if (accuracy < 70 && currentLevel > 1) currentLevel--;
+    final accuracy = totalCorrect > 0 ? (totalCorrect / (currentTrial + 1) * 100).round() : 0;
+    if (accuracy >= 85 && currentLevel < maxLevel) {
+      currentLevel++;
+    } else if (accuracy < 70 && currentLevel > 1) {
+      currentLevel--;
+    }
     await prefs.setInt('advancedmath_level', currentLevel);
   }
 
+  bool _timeIsUp() {
+    if (widget.maxDurationMinutes == null || sessionStartTime == null) return false;
+    final elapsedMinutes = DateTime.now().difference(sessionStartTime!).inMinutes;
+    return elapsedMinutes >= widget.maxDurationMinutes!;
+  }
+
   void _generateNewTrial() {
+    if (_timeIsUp()) {
+      _endSessionGracefully();
+      return;
+    }
+
     setState(() {
       if (widget.sessionMode == 'multiplication') isMultiplication = true;
       else if (widget.sessionMode == 'division') isMultiplication = false;
       else isMultiplication = Random().nextBool();
 
-      final maxNum = currentLevel == 1 ? 5 : currentLevel == 2 ? 7 : currentLevel == 3 ? 10 : 12;
+      final maxNum = [5, 7, 10, 12][currentLevel - 1].clamp(5, 12);
 
       if (isMultiplication) {
         a = Random().nextInt(maxNum) + 2;
@@ -105,15 +120,15 @@ class _AdvancedMathActivityScreenState extends State<AdvancedMathActivityScreen>
         answer = a * b;
       } else {
         b = Random().nextInt(maxNum) + 2;
-        final maxMultiplier = currentLevel == 1 ? 4 : currentLevel == 2 ? 5 : currentLevel == 3 ? 7 : 8;
-        final multiplier = Random().nextInt(maxMultiplier - 1) + 2;
+        final maxMult = [4, 5, 7, 8][currentLevel - 1];
+        final multiplier = Random().nextInt(maxMult - 1) + 2;
         a = b * multiplier;
         answer = multiplier;
       }
 
       choices = [answer];
       while (choices.length < 3) {
-        final distr = answer + Random().nextInt(6) - 3;
+        final distr = answer + Random().nextInt(9) - 4;
         if (distr > 0 && distr != answer && !choices.contains(distr)) choices.add(distr);
       }
       choices.shuffle();
@@ -126,22 +141,73 @@ class _AdvancedMathActivityScreenState extends State<AdvancedMathActivityScreen>
   }
 
   void _handleTap(int selected) {
-    if (selected == answer) {
-      correctCount++;
-      _speak("Great job!");
-      Future.delayed(const Duration(milliseconds: 900), () {
+    if (_timeIsUp()) {
+      _endSessionGracefully();
+      return;
+    }
+
+    final isCorrect = selected == answer;
+
+    setState(() {
+      if (isCorrect) {
+        correctInLevel++;
+        totalCorrect++;
+        _speak("Great job!");
+        _showMiniRewardIfNeeded();
+      } else {
+        showHint = true;
+        _speak("Try again");
+      }
+    });
+
+    Future.delayed(const Duration(milliseconds: 1200), () {
+      if (isCorrect) {
         currentTrial++;
-        if (currentTrial >= totalTrials) {
+
+        // Automatic level progression after completing questionsPerLevel correct answers
+        if (correctInLevel >= questionsPerLevel && currentLevel < maxLevel) {
+          setState(() {
+            currentLevel++;
+            correctInLevel = 0;
+          });
+          _speak("Level up! Let's try harder ones!");
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text("Level $currentLevel unlocked! 🌟"),
+              backgroundColor: AppTheme.success,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+
+        // End session if all levels done or time is up
+        if (currentTrial >= questionsPerLevel * maxLevel || _timeIsUp()) {
           _saveLevel();
-          widget.onSessionComplete();
+          _endSessionGracefully();
         } else {
           _generateNewTrial();
         }
-      });
-    } else {
-      setState(() => showHint = true);
-      _speak("Try again");
+      }
+    });
+  }
+
+  void _showMiniRewardIfNeeded() {
+    if (correctInLevel > 0 && correctInLevel % 5 == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Amazing streak! $correctInLevel correct! ⭐⭐⭐"),
+          backgroundColor: AppTheme.success,
+          duration: const Duration(seconds: 2),
+        ),
+      );
     }
+  }
+
+  void _endSessionGracefully() {
+    _speak("Great work today! See you next time!");
+    Future.delayed(const Duration(seconds: 2), () {
+      widget.onSessionComplete();
+    });
   }
 
   Widget _buildProblem() {
@@ -195,86 +261,109 @@ class _AdvancedMathActivityScreenState extends State<AdvancedMathActivityScreen>
     return Scaffold(
       backgroundColor: AppTheme.background,
       body: SafeArea(
-        child: Column(
+        child: Stack(
           children: [
-            Padding(
-              padding: EdgeInsets.fromLTRB(24.w, 16.h, 24.w, 8.h),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: LinearProgressIndicator(
-                      value: (currentTrial + 1) / totalTrials,
-                      backgroundColor: AppTheme.surfaceVariant,
-                      color: AppTheme.primary,
-                      minHeight: 14.h,
-                      borderRadius: BorderRadius.circular(7.r),
-                    ),
-                  ),
-                  SizedBox(width: 16.w),
-                  Text(
-                    '${currentTrial + 1} / $totalTrials',
-                    style: GoogleFonts.fredoka(fontSize: 18.sp, fontWeight: FontWeight.w600, color: AppTheme.primary),
-                  ),
-                  SizedBox(width: 8.w),
-                  IconButton(
-                    onPressed: () => setState(() => showHint = true),
-                    icon: Icon(Icons.help_outline_rounded, color: AppTheme.primary, size: 28.w),
-                  ),
-                  IconButton(
-                    onPressed: () => _speak(isMultiplication ? "$a times $b" : "$a divided by $b"),
-                    icon: Icon(Icons.volume_up_rounded, color: AppTheme.primary, size: 28.w),
-                  ),
-                ],
-              ),
-            ),
-
-            const Spacer(),
-
-            Container(
-              width: 300.w,
-              padding: EdgeInsets.all(24.w),
-              decoration: BoxDecoration(
-                color: AppTheme.primary.withOpacity(0.08),
-                borderRadius: BorderRadius.circular(32.r),
-              ),
-              child: _buildProblem(),
-            ),
-
-            const Spacer(),
-
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: 20.w),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: choices.map((num) {
-                  final isHinted = num == answer && showHint;
-                  return GestureDetector(
-                    onTap: () => _handleTap(num),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 400),
-                      width: 100.w,
-                      height: 110.h,
-                      decoration: BoxDecoration(
-                        color: isHinted ? AppTheme.success.withOpacity(0.25) : AppTheme.surface,
-                        borderRadius: BorderRadius.circular(24.r),
-                        border: Border.all(
-                          color: isHinted ? AppTheme.success : AppTheme.surfaceVariant,
-                          width: isHinted ? 7.w : 3.w,
+            Column(
+              children: [
+                Padding(
+                  padding: EdgeInsets.fromLTRB(24.w, 16.h, 24.w, 8.h),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: LinearProgressIndicator(
+                          value: (currentTrial + 1) / (questionsPerLevel * maxLevel),
+                          backgroundColor: AppTheme.surfaceVariant,
+                          color: AppTheme.primary,
+                          minHeight: 14.h,
+                          borderRadius: BorderRadius.circular(7.r),
                         ),
                       ),
-                      child: Center(
-                        child: Text(
-                          num.toString(),
-                          style: GoogleFonts.fredoka(fontSize: 42.sp, fontWeight: FontWeight.w700, color: AppTheme.primary),
-                        ),
+                      SizedBox(width: 16.w),
+                      Text(
+                        '${currentTrial + 1} / ${questionsPerLevel * maxLevel}',
+                        style: GoogleFonts.fredoka(fontSize: 18.sp, fontWeight: FontWeight.w600, color: AppTheme.primary),
                       ),
-                    ),
-                  );
-                }).toList(),
-              ),
+                      SizedBox(width: 8.w),
+                      IconButton(
+                        onPressed: () => setState(() => showHint = true),
+                        icon: Icon(Icons.help_outline_rounded, color: AppTheme.primary, size: 28.w),
+                      ),
+                      IconButton(
+                        onPressed: () => _speak(isMultiplication ? "$a times $b" : "$a divided by $b"),
+                        icon: Icon(Icons.volume_up_rounded, color: AppTheme.primary, size: 28.w),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const Spacer(),
+
+                Container(
+                  width: 300.w,
+                  padding: EdgeInsets.all(24.w),
+                  decoration: BoxDecoration(
+                    color: AppTheme.primary.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(32.r),
+                  ),
+                  child: _buildProblem(),
+                ),
+
+                const Spacer(),
+
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 20.w),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: choices.map((num) {
+                      final isHinted = num == answer && showHint;
+                      return GestureDetector(
+                        onTap: () => _handleTap(num),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 400),
+                          width: 100.w,
+                          height: 110.h,
+                          decoration: BoxDecoration(
+                            color: isHinted ? AppTheme.success.withOpacity(0.25) : AppTheme.surface,
+                            borderRadius: BorderRadius.circular(24.r),
+                            border: Border.all(
+                              color: isHinted ? AppTheme.success : AppTheme.surfaceVariant,
+                              width: isHinted ? 7.w : 3.w,
+                            ),
+                          ),
+                          child: Center(
+                            child: Text(
+                              num.toString(),
+                              style: GoogleFonts.fredoka(fontSize: 42.sp, fontWeight: FontWeight.w700, color: AppTheme.primary),
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+
+                const Spacer(flex: 2),
+              ],
             ),
 
-            const Spacer(flex: 2),
+            // Time remaining display
+            if (widget.maxDurationMinutes != null && sessionStartTime != null)
+              Positioned(
+                top: 16.h,
+                right: 24.w,
+                child: Container(
+                  padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.9),
+                    borderRadius: BorderRadius.circular(20.r),
+                    boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 4)],
+                  ),
+                  child: Text(
+                    "Time left: ${widget.maxDurationMinutes! - DateTime.now().difference(sessionStartTime!).inMinutes} min",
+                    style: GoogleFonts.fredoka(fontSize: 14.sp, color: AppTheme.textPrimary),
+                  ),
+                ),
+              ),
           ],
         ),
       ),

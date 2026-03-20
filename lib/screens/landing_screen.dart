@@ -12,9 +12,10 @@ class LandingPage extends StatefulWidget {
 }
 
 class _LandingPageState extends State<LandingPage> with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late List<Animation<double>> _letterAnimations;
-  late Animation<double> _taglineAnimation;
+  // ───── SAFE DEFAULTS (no more late) ─────
+  AnimationController? _controller;
+  List<Animation<double>> _letterAnimations = [];
+  Animation<double>? _taglineAnimation;
 
   final String title = "NYOTA";
   final List<String> letters = [];
@@ -24,16 +25,18 @@ class _LandingPageState extends State<LandingPage> with SingleTickerProviderStat
     super.initState();
     letters.addAll(title.split(''));
 
+    // Create controller first
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 2800),
     );
 
+    // Now safe to use _controller!
     _letterAnimations = List.generate(
       letters.length,
       (index) => Tween<double>(begin: 0.0, end: 1.0).animate(
         CurvedAnimation(
-          parent: _controller,
+          parent: _controller!,                    // ← safe !
           curve: Interval(
             0.1 * index,
             0.1 * index + 0.60,
@@ -45,22 +48,29 @@ class _LandingPageState extends State<LandingPage> with SingleTickerProviderStat
 
     _taglineAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
-        parent: _controller,
+        parent: _controller!,                      // ← safe !
         curve: const Interval(0.65, 1.0, curve: Curves.easeOut),
       ),
     );
 
-    _controller.forward();
+    _controller!.forward();
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _controller?.dispose();   // ← safe null check
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    // Safety guard (prevents any rare edge-case crash on web/hot-reload)
+    if (_controller == null) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
       backgroundColor: AppTheme.background,
       body: SafeArea(
@@ -110,7 +120,7 @@ class _LandingPageState extends State<LandingPage> with SingleTickerProviderStat
 
               // Tagline
               FadeTransition(
-                opacity: _taglineAnimation,
+                opacity: _taglineAnimation!,           // ← safe !
                 child: Text(
                   "Math is Easy",
                   textAlign: TextAlign.center,
