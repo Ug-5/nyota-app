@@ -12,7 +12,6 @@ class LandingPage extends StatefulWidget {
 }
 
 class _LandingPageState extends State<LandingPage> with SingleTickerProviderStateMixin {
-  // ───── SAFE DEFAULTS (no more late) ─────
   AnimationController? _controller;
   List<Animation<double>> _letterAnimations = [];
   Animation<double>? _taglineAnimation;
@@ -25,18 +24,16 @@ class _LandingPageState extends State<LandingPage> with SingleTickerProviderStat
     super.initState();
     letters.addAll(title.split(''));
 
-    // Create controller first
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 2800),
     );
 
-    // Now safe to use _controller!
     _letterAnimations = List.generate(
       letters.length,
       (index) => Tween<double>(begin: 0.0, end: 1.0).animate(
         CurvedAnimation(
-          parent: _controller!,                    // ← safe !
+          parent: _controller!,
           curve: Interval(
             0.1 * index,
             0.1 * index + 0.60,
@@ -48,7 +45,7 @@ class _LandingPageState extends State<LandingPage> with SingleTickerProviderStat
 
     _taglineAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
-        parent: _controller!,                      // ← safe !
+        parent: _controller!,
         curve: const Interval(0.65, 1.0, curve: Curves.easeOut),
       ),
     );
@@ -58,13 +55,14 @@ class _LandingPageState extends State<LandingPage> with SingleTickerProviderStat
 
   @override
   void dispose() {
-    _controller?.dispose();   // ← safe null check
+    _controller?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    // Safety guard (prevents any rare edge-case crash on web/hot-reload)
+    final colorScheme = Theme.of(context).colorScheme;
+    
     if (_controller == null) {
       return const Scaffold(
         body: Center(child: CircularProgressIndicator()),
@@ -72,7 +70,6 @@ class _LandingPageState extends State<LandingPage> with SingleTickerProviderStat
     }
 
     return Scaffold(
-      backgroundColor: AppTheme.background,
       body: SafeArea(
         child: Center(
           child: Column(
@@ -105,7 +102,7 @@ class _LandingPageState extends State<LandingPage> with SingleTickerProviderStat
                           style: GoogleFonts.fredoka(
                             fontSize: 85.sp,
                             fontWeight: FontWeight.w600,
-                            color: AppTheme.primary,
+                            color: colorScheme.primary,
                             height: 1.00,
                             letterSpacing: -1.2.sp,
                           ),
@@ -120,14 +117,14 @@ class _LandingPageState extends State<LandingPage> with SingleTickerProviderStat
 
               // Tagline
               FadeTransition(
-                opacity: _taglineAnimation!,           // ← safe !
+                opacity: _taglineAnimation!,
                 child: Text(
                   "Math is Easy",
                   textAlign: TextAlign.center,
                   style: GoogleFonts.fredoka(
                     fontSize: 28.sp,
                     fontWeight: FontWeight.w400,
-                    color: AppTheme.textSecondary,
+                    color: colorScheme.onSurfaceVariant,
                     letterSpacing: 0.4.sp,
                   ),
                 ),
@@ -144,8 +141,8 @@ class _LandingPageState extends State<LandingPage> with SingleTickerProviderStat
                     Expanded(
                       child: _buildButton(
                         label: 'Log In',
-                        background: AppTheme.surfaceVariant,
-                        textColor: AppTheme.textPrimary,
+                        background: colorScheme.surfaceVariant,
+                        textColor: colorScheme.onSurface,
                         onTap: () => Navigator.pushNamed(context, '/login'),
                       ),
                     ),
@@ -153,8 +150,8 @@ class _LandingPageState extends State<LandingPage> with SingleTickerProviderStat
                     Expanded(
                       child: _buildButton(
                         label: 'Sign Up',
-                        background: AppTheme.primary,
-                        textColor: AppTheme.onPrimary,
+                        background: colorScheme.primary,
+                        textColor: colorScheme.onPrimary,
                         isPrimary: true,
                         onTap: () => Navigator.pushNamed(context, '/signup'),
                       ),
@@ -178,6 +175,8 @@ class _LandingPageState extends State<LandingPage> with SingleTickerProviderStat
     required VoidCallback onTap,
     bool isPrimary = false,
   }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
     return SizedBox(
       height: 54.h,
       child: ElevatedButton(
@@ -186,7 +185,7 @@ class _LandingPageState extends State<LandingPage> with SingleTickerProviderStat
           backgroundColor: background,
           foregroundColor: textColor,
           elevation: isPrimary ? 3 : 1,
-          shadowColor: AppTheme.primary.withOpacity(0.22),
+          shadowColor: colorScheme.primary.withOpacity(0.22),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(28.r),
           ),

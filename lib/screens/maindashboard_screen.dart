@@ -3,10 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:nyota/theme.dart';
 import 'parentdashboard.dart';
-import 'childdashboard.dart';  // ← kept your original import
+import 'childdashboard.dart';
 
 class MainDashboardScreen extends StatefulWidget {
-  const MainDashboardScreen({super.key});  // ← removed userPassword
+  const MainDashboardScreen({super.key});
 
   @override
   State<MainDashboardScreen> createState() => _MainDashboardScreenState();
@@ -31,10 +31,6 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
     super.dispose();
   }
 
-  // ──────────────────────────────────────────────
-  // NEW: Direct navigation (no more password dialog)
-  // The ParentDashboard will now handle PIN setup/verification itself
-  // ──────────────────────────────────────────────
   void _openParentDashboard() {
     Navigator.push(
       context,
@@ -44,12 +40,12 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     final Size size = MediaQuery.of(context).size;
     final double screenWidth = size.width;
     final double scaleFactor = (screenWidth / 375).clamp(0.8, 1.2);
 
     return Scaffold(
-      backgroundColor: AppTheme.background,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -63,7 +59,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
                     vertical: 40 * scaleFactor,
                   ),
                   decoration: BoxDecoration(
-                    color: AppTheme.surface,
+                    color: colorScheme.surface,
                     borderRadius: BorderRadius.circular(32),
                     boxShadow: [
                       BoxShadow(
@@ -82,7 +78,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
                         style: GoogleFonts.fredoka(
                           fontSize: 22 * scaleFactor,
                           fontWeight: FontWeight.w700,
-                          color: AppTheme.textPrimary,
+                          color: colorScheme.onSurface,
                           height: 1.3,
                         ),
                       ),
@@ -96,7 +92,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
                               imageAsset: 'assets/images/parent.png',
                               label: 'Parent',
                               scaleFactor: scaleFactor,
-                              onTap: _openParentDashboard,  // ← now direct
+                              onTap: _openParentDashboard,
                             ),
                           ),
                           SizedBox(width: 16 * scaleFactor),
@@ -130,6 +126,8 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
     required double scaleFactor,
     required VoidCallback onTap,
   }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
     return GestureDetector(
       onTap: onTap,
       child: Column(
@@ -139,7 +137,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
             child: Container(
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(24 * scaleFactor),
-                color: AppTheme.surfaceVariant,
+                color: colorScheme.surfaceVariant,
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withOpacity(0.08),
@@ -162,7 +160,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
               style: GoogleFonts.fredoka(
                 fontSize: 16 * scaleFactor,
                 fontWeight: FontWeight.w600,
-                color: AppTheme.textPrimary,
+                color: colorScheme.onSurface,
               ),
             ),
           ),

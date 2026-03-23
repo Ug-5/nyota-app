@@ -1,4 +1,4 @@
-// lib/screens/parentdashboard_screen.dart
+// lib/screens/parentdashboard.dart
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -8,6 +8,8 @@ import 'package:nyota/theme.dart';
 import '../services/storage_service.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:provider/provider.dart';  
+import 'package:nyota/screens/theme_provider.dart';  // ← ADD THIS - adjust path as needed
 
 // Import child activity screens so we can navigate with duration
 import 'shapesactivity.dart';
@@ -43,7 +45,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
   ];
 
   bool _soundEnabled = true;
-  bool _isDarkMode = false;
+  // REMOVE: bool _isDarkMode = false;  // ← Remove this line
 
   @override
   void initState() {
@@ -83,13 +85,10 @@ class _ParentDashboardState extends State<ParentDashboard> {
     }
   }
 
-  // ──────────────────────────────────────────────
-  // PIN dialogs (kept mostly unchanged)
-  // ──────────────────────────────────────────────
-
   Future<bool?> _showPinSetupDialog() async {
     final pinController = TextEditingController();
     final confirmController = TextEditingController();
+    final colorScheme = Theme.of(context).colorScheme;
 
     return showDialog<bool>(
       context: context,
@@ -109,7 +108,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
                 obscureText: true,
                 keyboardType: TextInputType.number,
                 maxLength: 6,
-                decoration: InputDecoration(labelText: 'Enter PIN', counterText: '', border: OutlineInputBorder(borderRadius: BorderRadius.circular(16.r)), filled: true, fillColor: AppTheme.surfaceVariant),
+                decoration: InputDecoration(labelText: 'Enter PIN', counterText: '', border: OutlineInputBorder(borderRadius: BorderRadius.circular(16.r)), filled: true, fillColor: colorScheme.surfaceVariant),
               ),
               SizedBox(height: 12.h),
               TextField(
@@ -117,7 +116,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
                 obscureText: true,
                 keyboardType: TextInputType.number,
                 maxLength: 6,
-                decoration: InputDecoration(labelText: 'Confirm PIN', counterText: '', border: OutlineInputBorder(borderRadius: BorderRadius.circular(16.r)), filled: true, fillColor: AppTheme.surfaceVariant),
+                decoration: InputDecoration(labelText: 'Confirm PIN', counterText: '', border: OutlineInputBorder(borderRadius: BorderRadius.circular(16.r)), filled: true, fillColor: colorScheme.surfaceVariant),
               ),
             ],
           ),
@@ -137,7 +136,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
                 await prefs.setString('parent_pin', pinController.text);
                 Navigator.pop(dialogContext, true);
               },
-              style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary, foregroundColor: AppTheme.onPrimary, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20.r))),
+              style: ElevatedButton.styleFrom(backgroundColor: colorScheme.primary, foregroundColor: colorScheme.onPrimary, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20.r))),
               child: Text('Save PIN', style: GoogleFonts.fredoka(fontWeight: FontWeight.w600)),
             ),
           ],
@@ -150,6 +149,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
   Future<bool?> _showPinPromptDialog() async {
     final pinController = TextEditingController();
     bool isRetry = false;
+    final colorScheme = Theme.of(context).colorScheme;
 
     while (mounted) {
       final String? enteredPin = await showDialog<String>(
@@ -170,7 +170,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
                   keyboardType: TextInputType.number,
                   maxLength: 6,
                   autofocus: true,
-                  decoration: InputDecoration(labelText: 'Enter PIN', counterText: '', border: OutlineInputBorder(borderRadius: BorderRadius.circular(16.r)), filled: true, fillColor: AppTheme.surfaceVariant),
+                  decoration: InputDecoration(labelText: 'Enter PIN', counterText: '', border: OutlineInputBorder(borderRadius: BorderRadius.circular(16.r)), filled: true, fillColor: colorScheme.surfaceVariant),
                 ),
               ],
             ),
@@ -178,7 +178,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
               TextButton(onPressed: () => Navigator.pop(dialogContext, 'logout'), child: Text('Log out', style: GoogleFonts.fredoka(color: AppTheme.error))),
               ElevatedButton(
                 onPressed: () => Navigator.pop(dialogContext, pinController.text.trim()),
-                style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary, foregroundColor: AppTheme.onPrimary, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20.r))),
+                style: ElevatedButton.styleFrom(backgroundColor: colorScheme.primary, foregroundColor: colorScheme.onPrimary, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20.r))),
                 child: Text('Verify', style: GoogleFonts.fredoka(fontWeight: FontWeight.w600)),
               ),
             ],
@@ -219,7 +219,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
         _schedules = loadedSchedules;
         _rewardImages = loadedRewards;
         _soundEnabled = prefs.getBool('sound_enabled') ?? true;
-        _isDarkMode = prefs.getBool('dark_mode') ?? false;
+        // REMOVE: _isDarkMode = prefs.getBool('dark_mode') ?? false;
       });
     } catch (e) {
       print("Error loading data: $e");
@@ -236,9 +236,6 @@ class _ParentDashboardState extends State<ParentDashboard> {
     }
   }
 
-  // ──────────────────────────────────────────────
-  // Open schedule editor
-  // ──────────────────────────────────────────────
   void _openScheduleEditor(String activity) {
     showModalBottomSheet(
       context: context,
@@ -281,20 +278,23 @@ class _ParentDashboardState extends State<ParentDashboard> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    // Get the theme provider
+    final themeProvider = Provider.of<ThemeProvider>(context, listen: true);
+    
     if (_isLoading) {
-      return const Scaffold(backgroundColor: AppTheme.background, body: Center(child: CircularProgressIndicator()));
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     if (!_isAuthenticatedLocally) {
-      return const Scaffold(backgroundColor: AppTheme.background, body: Center(child: Text('Verifying...')));
+      return const Scaffold(body: Center(child: Text('Verifying...')));
     }
 
     return Scaffold(
-      backgroundColor: AppTheme.background,
       appBar: AppBar(
         title: Text("Parent Dashboard", style: GoogleFonts.fredoka(fontWeight: FontWeight.w700, fontSize: 22.sp)),
-        backgroundColor: AppTheme.surface,
-        foregroundColor: AppTheme.textPrimary,
+        backgroundColor: colorScheme.surface,
+        foregroundColor: colorScheme.onSurface,
         elevation: 0,
         actions: [
           IconButton(icon: const Icon(Icons.logout), tooltip: 'Log out', onPressed: _logout),
@@ -308,20 +308,20 @@ class _ParentDashboardState extends State<ParentDashboard> {
             children: [
               Padding(
                 padding: EdgeInsets.only(bottom: 20.h),
-                child: Text("Hi! Let's plan today's learning", style: GoogleFonts.fredoka(fontSize: 24.sp, fontWeight: FontWeight.w700, color: AppTheme.textPrimary)),
+                child: Text("Hi! Let's plan today's learning", style: GoogleFonts.fredoka(fontSize: 24.sp, fontWeight: FontWeight.w700, color: colorScheme.onSurface)),
               ),
 
-              Text("Daily Schedule", style: GoogleFonts.fredoka(fontSize: 20.sp, fontWeight: FontWeight.w600, color: AppTheme.textSecondary)),
+              Text("Daily Schedule", style: GoogleFonts.fredoka(fontSize: 20.sp, fontWeight: FontWeight.w600, color: colorScheme.onSurfaceVariant)),
               SizedBox(height: 12.h),
               ..._activities.map((act) => _buildSchedulerCard(act)),
 
               SizedBox(height: 40.h),
-              Text("Reward Settings", style: GoogleFonts.fredoka(fontSize: 20.sp, fontWeight: FontWeight.w600, color: AppTheme.textSecondary)),
+              Text("Reward Settings", style: GoogleFonts.fredoka(fontSize: 20.sp, fontWeight: FontWeight.w600, color: colorScheme.onSurfaceVariant)),
               SizedBox(height: 12.h),
               ..._activities.map((act) => _buildRewardCard(act)),
 
               SizedBox(height: 40.h),
-              Text("App Settings", style: GoogleFonts.fredoka(fontSize: 20.sp, fontWeight: FontWeight.w600, color: AppTheme.textSecondary)),
+              Text("App Settings", style: GoogleFonts.fredoka(fontSize: 20.sp, fontWeight: FontWeight.w600, color: colorScheme.onSurfaceVariant)),
               SizedBox(height: 12.h),
               Card(
                 elevation: 1,
@@ -330,9 +330,9 @@ class _ParentDashboardState extends State<ParentDashboard> {
                   children: [
                     SwitchListTile(
                       title: Text("Sound Effects", style: GoogleFonts.fredoka(fontSize: 16.sp, fontWeight: FontWeight.w500)),
-                      subtitle: Text("Play voice instructions during activities", style: GoogleFonts.fredoka(fontSize: 13.sp, color: AppTheme.textSecondary)),
+                      subtitle: Text("Play voice instructions during activities", style: GoogleFonts.fredoka(fontSize: 13.sp, color: colorScheme.onSurfaceVariant)),
                       value: _soundEnabled,
-                      activeColor: AppTheme.secondary,
+                      activeColor: colorScheme.secondary,
                       onChanged: (v) async {
                         setState(() => _soundEnabled = v);
                         final prefs = await SharedPreferences.getInstance();
@@ -342,13 +342,12 @@ class _ParentDashboardState extends State<ParentDashboard> {
                     const Divider(height: 1),
                     SwitchListTile(
                       title: Text("Dark Mode", style: GoogleFonts.fredoka(fontSize: 16.sp, fontWeight: FontWeight.w500)),
-                      subtitle: Text("Reduce eye strain at night", style: GoogleFonts.fredoka(fontSize: 13.sp, color: AppTheme.textSecondary)),
-                      value: _isDarkMode,
-                      activeColor: AppTheme.secondary,
-                      onChanged: (v) async {
-                        setState(() => _isDarkMode = v);
-                        final prefs = await SharedPreferences.getInstance();
-                        await prefs.setBool('dark_mode', v);
+                      subtitle: Text("Reduce eye strain at night", style: GoogleFonts.fredoka(fontSize: 13.sp, color: colorScheme.onSurfaceVariant)),
+                      value: themeProvider.isDarkMode,  // ← Use themeProvider
+                      activeColor: colorScheme.secondary,
+                      onChanged: (value) async {
+                        // Update the global theme provider
+                        themeProvider.toggleDarkMode(value);
                       },
                     ),
                     const Divider(height: 1),
@@ -367,8 +366,8 @@ class _ParentDashboardState extends State<ParentDashboard> {
                   icon: const Icon(Icons.download_rounded),
                   label: Text("Download Progress Report", style: GoogleFonts.fredoka(fontSize: 16.sp)),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.primary,
-                    foregroundColor: AppTheme.onPrimary,
+                    backgroundColor: colorScheme.primary,
+                    foregroundColor: colorScheme.onPrimary,
                     padding: EdgeInsets.symmetric(horizontal: 32.w, vertical: 16.h),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30.r)),
                   ),
@@ -383,6 +382,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
   }
 
   Widget _buildSchedulerCard(String activity) {
+    final colorScheme = Theme.of(context).colorScheme;
     final sessions = _schedules[activity] ?? [];
     final sessionCount = sessions.length;
     final totalMinutes = sessions.fold<int>(0, (sum, s) => sum + (s['duration'] as int? ?? 15));
@@ -397,14 +397,14 @@ class _ParentDashboardState extends State<ParentDashboard> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20.r)),
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: AppTheme.primary.withOpacity(0.15),
+          backgroundColor: colorScheme.primary.withOpacity(0.15),
           radius: 28.r,
-          child: Icon(_getActivityIcon(activity), color: AppTheme.primary, size: 32.w),
+          child: Icon(_getActivityIcon(activity), color: colorScheme.primary, size: 32.w),
         ),
         title: Text(activity, style: GoogleFonts.fredoka(fontSize: 18.sp, fontWeight: FontWeight.w700)),
-        subtitle: Text(timeText, style: GoogleFonts.fredoka(fontSize: 14.sp, color: AppTheme.textSecondary)),
+        subtitle: Text(timeText, style: GoogleFonts.fredoka(fontSize: 14.sp, color: colorScheme.onSurfaceVariant)),
         trailing: IconButton(
-          icon: Icon(Icons.edit_calendar_rounded, color: AppTheme.primary, size: 28.w),
+          icon: Icon(Icons.edit_calendar_rounded, color: colorScheme.primary, size: 28.w),
           onPressed: () => _openScheduleEditor(activity),
         ),
       ),
@@ -412,6 +412,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
   }
 
   Widget _buildRewardCard(String activity) {
+    final colorScheme = Theme.of(context).colorScheme;
     final path = _rewardImages[activity];
     return Card(
       margin: EdgeInsets.only(bottom: 12.h),
@@ -424,10 +425,10 @@ class _ParentDashboardState extends State<ParentDashboard> {
               width: 64.w,
               height: 64.h,
               decoration: BoxDecoration(
-                color: AppTheme.primary.withOpacity(0.15),
+                color: colorScheme.primary.withOpacity(0.15),
                 borderRadius: BorderRadius.circular(16.r),
               ),
-              child: Icon(_getActivityIcon(activity), color: AppTheme.primary, size: 32.w),
+              child: Icon(_getActivityIcon(activity), color: colorScheme.primary, size: 32.w),
             ),
             SizedBox(width: 16.w),
             Expanded(
@@ -438,7 +439,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
                   SizedBox(height: 4.h),
                   Text(
                     path == null ? "No reward set" : "Reward ready",
-                    style: GoogleFonts.fredoka(fontSize: 14.sp, color: path == null ? AppTheme.textSecondary : AppTheme.success),
+                    style: GoogleFonts.fredoka(fontSize: 14.sp, color: path == null ? colorScheme.onSurfaceVariant : AppTheme.success),
                   ),
                 ],
               ),
@@ -447,8 +448,8 @@ class _ParentDashboardState extends State<ParentDashboard> {
               icon: Icon(Icons.image_rounded, size: 18.w),
               label: Text("Set", style: GoogleFonts.fredoka(fontSize: 14.sp)),
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.primary,
-                foregroundColor: AppTheme.onPrimary,
+                backgroundColor: colorScheme.primary,
+                foregroundColor: colorScheme.onPrimary,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20.r)),
                 padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
               ),
@@ -470,14 +471,67 @@ class _ParentDashboardState extends State<ParentDashboard> {
     }
   }
 
-  void _showChangePinDialog() {
-    // (unchanged – add your existing change PIN dialog here if needed)
+  void _showChangePinDialog() async {
+    final pinController = TextEditingController();
+    final confirmController = TextEditingController();
+    final colorScheme = Theme.of(context).colorScheme;
+
+    final bool? changed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Change Parent PIN', style: GoogleFonts.fredoka(fontWeight: FontWeight.w700, fontSize: 22.sp)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: pinController,
+              obscureText: true,
+              keyboardType: TextInputType.number,
+              maxLength: 6,
+              decoration: InputDecoration(labelText: 'New PIN', border: OutlineInputBorder(borderRadius: BorderRadius.circular(16.r))),
+            ),
+            SizedBox(height: 12.h),
+            TextField(
+              controller: confirmController,
+              obscureText: true,
+              keyboardType: TextInputType.number,
+              maxLength: 6,
+              decoration: InputDecoration(labelText: 'Confirm New PIN', border: OutlineInputBorder(borderRadius: BorderRadius.circular(16.r))),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: Text('Cancel')),
+          ElevatedButton(
+            onPressed: () async {
+              if (pinController.text.length < 4) {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('PIN must be at least 4 digits'), backgroundColor: AppTheme.error));
+                return;
+              }
+              if (pinController.text != confirmController.text) {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('PINs do not match'), backgroundColor: AppTheme.error));
+                return;
+              }
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.setString('parent_pin', pinController.text);
+              Navigator.pop(context, true);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: colorScheme.primary),
+            child: Text('Save'),
+          ),
+        ],
+      ),
+    );
+
+    if (changed == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: const Text('PIN changed successfully'), backgroundColor: AppTheme.success),
+      );
+    }
   }
 }
 
-// ──────────────────────────────────────────────
-// Schedule Editor Bottom Sheet – updated UX
-// ──────────────────────────────────────────────
+// Schedule Editor Bottom Sheet (unchanged)
 class _ScheduleEditorBottomSheet extends StatefulWidget {
   final String activityName;
   final List<Map<String, dynamic>> currentSessions;
@@ -515,12 +569,13 @@ class _ScheduleEditorBottomSheetState extends State<_ScheduleEditorBottomSheet> 
   Future<void> _pickTime(int index) async {
     final parts = (_sessions[index]['startTime'] as String).split(':');
     final initial = TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1]));
+    final colorScheme = Theme.of(context).colorScheme;
 
     final picked = await showTimePicker(
       context: context,
       initialTime: initial,
       builder: (context, child) => Theme(
-        data: Theme.of(context).copyWith(colorScheme: ColorScheme.light(primary: AppTheme.primary, onPrimary: Colors.white)),
+        data: Theme.of(context).copyWith(colorScheme: ColorScheme.light(primary: colorScheme.primary, onPrimary: Colors.white)),
         child: child!,
       ),
     );
@@ -542,6 +597,7 @@ class _ScheduleEditorBottomSheetState extends State<_ScheduleEditorBottomSheet> 
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     final totalMin = _calculateTotalMinutes();
 
     return Container(
@@ -550,9 +606,9 @@ class _ScheduleEditorBottomSheetState extends State<_ScheduleEditorBottomSheet> 
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text("Schedule ${widget.activityName}", style: GoogleFonts.fredoka(fontSize: 22.sp, fontWeight: FontWeight.w700, color: AppTheme.textPrimary)),
+          Text("Schedule ${widget.activityName}", style: GoogleFonts.fredoka(fontSize: 22.sp, fontWeight: FontWeight.w700, color: colorScheme.onSurface)),
           SizedBox(height: 8.h),
-          Text("Set times and duration for today's session", style: GoogleFonts.fredoka(fontSize: 15.sp, color: AppTheme.textSecondary)),
+          Text("Set times and duration for today's session", style: GoogleFonts.fredoka(fontSize: 15.sp, color: colorScheme.onSurfaceVariant)),
           SizedBox(height: 16.h),
 
           if (_sessions.isNotEmpty)
@@ -562,7 +618,7 @@ class _ScheduleEditorBottomSheetState extends State<_ScheduleEditorBottomSheet> 
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text("Total planned time", style: GoogleFonts.fredoka(fontSize: 16.sp, fontWeight: FontWeight.w500)),
-                  Text("$totalMin minutes", style: GoogleFonts.fredoka(fontSize: 16.sp, color: AppTheme.primary, fontWeight: FontWeight.w600)),
+                  Text("$totalMin minutes", style: GoogleFonts.fredoka(fontSize: 16.sp, color: colorScheme.primary, fontWeight: FontWeight.w600)),
                 ],
               ),
             ),
@@ -571,7 +627,7 @@ class _ScheduleEditorBottomSheetState extends State<_ScheduleEditorBottomSheet> 
             Center(
               child: Padding(
                 padding: EdgeInsets.symmetric(vertical: 40.h),
-                child: Text("No sessions yet\nTap + to add one", textAlign: TextAlign.center, style: GoogleFonts.fredoka(fontSize: 16.sp, color: AppTheme.textSecondary)),
+                child: Text("No sessions yet\nTap + to add one", textAlign: TextAlign.center, style: GoogleFonts.fredoka(fontSize: 16.sp, color: colorScheme.onSurfaceVariant)),
               ),
             )
           else
@@ -588,10 +644,10 @@ class _ScheduleEditorBottomSheetState extends State<_ScheduleEditorBottomSheet> 
                         borderRadius: BorderRadius.circular(16.r),
                         child: Container(
                           padding: EdgeInsets.symmetric(vertical: 14.h, horizontal: 16.w),
-                          decoration: BoxDecoration(color: AppTheme.surfaceVariant, borderRadius: BorderRadius.circular(16.r)),
+                          decoration: BoxDecoration(color: colorScheme.surfaceVariant, borderRadius: BorderRadius.circular(16.r)),
                           child: Row(
                             children: [
-                              Icon(Icons.access_time_rounded, size: 20.w, color: AppTheme.primary),
+                              Icon(Icons.access_time_rounded, size: 20.w, color: colorScheme.primary),
                               SizedBox(width: 8.w),
                               Text(s['startTime'], style: GoogleFonts.fredoka(fontSize: 18.sp, fontWeight: FontWeight.w600)),
                             ],
@@ -631,7 +687,7 @@ class _ScheduleEditorBottomSheetState extends State<_ScheduleEditorBottomSheet> 
                   label: Text("Add Session", style: GoogleFonts.fredoka(fontSize: 16.sp)),
                   style: OutlinedButton.styleFrom(
                     padding: EdgeInsets.symmetric(vertical: 16.h),
-                    side: BorderSide(color: AppTheme.primary),
+                    side: BorderSide(color: colorScheme.primary),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20.r)),
                   ),
                   onPressed: _addSession,
@@ -645,8 +701,8 @@ class _ScheduleEditorBottomSheetState extends State<_ScheduleEditorBottomSheet> 
                     Navigator.pop(context);
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.primary,
-                    foregroundColor: AppTheme.onPrimary,
+                    backgroundColor: colorScheme.primary,
+                    foregroundColor: colorScheme.onPrimary,
                     padding: EdgeInsets.symmetric(vertical: 16.h),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20.r)),
                   ),

@@ -1,3 +1,4 @@
+// lib/screens/childdashboard.dart
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -134,7 +135,7 @@ class _ChildDashboardState extends State<ChildDashboard> {
   }
 
   void _startActivity(String activityName) {
-    print("startActivity called → $activityName"); // debug - remove later
+    print("startActivity called → $activityName");
 
     switch (activityName) {
       case 'Shapes':
@@ -200,9 +201,10 @@ class _ChildDashboardState extends State<ChildDashboard> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
     if (_isLoading) {
       return const Scaffold(
-        backgroundColor: AppTheme.background,
         body: Center(child: CircularProgressIndicator()),
       );
     }
@@ -214,7 +216,6 @@ class _ChildDashboardState extends State<ChildDashboard> {
     final scheduledActivities = _getTodaysScheduledActivities();
 
     return Scaffold(
-      backgroundColor: AppTheme.background,
       body: SafeArea(
         child: Column(
           children: [
@@ -225,10 +226,10 @@ class _ChildDashboardState extends State<ChildDashboard> {
                 children: [
                   CircleAvatar(
                     radius: 38,
-                    backgroundColor: AppTheme.surface,
+                    backgroundColor: colorScheme.surface,
                     backgroundImage: _avatarPath != null ? AssetImage(_avatarPath!) : null,
                     child: _avatarPath == null
-                        ? const Icon(Icons.person, size: 40, color: AppTheme.textSecondary)
+                        ? const Icon(Icons.person, size: 40)
                         : null,
                   ),
                   const SizedBox(width: 16),
@@ -237,7 +238,7 @@ class _ChildDashboardState extends State<ChildDashboard> {
                     style: GoogleFonts.fredoka(
                       fontSize: 28,
                       fontWeight: FontWeight.w700,
-                      color: AppTheme.textPrimary,
+                      color: colorScheme.onSurface,
                     ),
                   ),
                 ],
@@ -264,6 +265,7 @@ class _ChildDashboardState extends State<ChildDashboard> {
   }
 
   Widget _buildOnboardingScreen() {
+    final colorScheme = Theme.of(context).colorScheme;
     final List<String> avatarOptions = [
       'assets/images/avatar1.png',
       'assets/images/avatar2.png',
@@ -276,7 +278,6 @@ class _ChildDashboardState extends State<ChildDashboard> {
     ];
 
     return Scaffold(
-      backgroundColor: AppTheme.background,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -328,7 +329,7 @@ class _ChildDashboardState extends State<ChildDashboard> {
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           border: Border.all(
-                            color: selected ? AppTheme.primary : Colors.transparent,
+                            color: selected ? colorScheme.primary : Colors.transparent,
                             width: 4,
                           ),
                         ),
@@ -360,8 +361,8 @@ class _ChildDashboardState extends State<ChildDashboard> {
                       );
                     }
                   },
-                  style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary),
-                  child: Text("Let's Start!", style: GoogleFonts.fredoka(fontSize: 20, color: Colors.white)),
+                  style: ElevatedButton.styleFrom(backgroundColor: colorScheme.primary),
+                  child: Text("Let's Start!", style: GoogleFonts.fredoka(fontSize: 20, color: colorScheme.onPrimary)),
                 ),
               ),
             ],
@@ -387,6 +388,7 @@ class _ChildDashboardState extends State<ChildDashboard> {
   }
 
   Widget _buildActivityCard(String activityName, bool completed) {
+    final colorScheme = Theme.of(context).colorScheme;
     final color = _getActivityColor(activityName);
     final timeHint = _getTimeHint(activityName);
 
@@ -396,7 +398,7 @@ class _ChildDashboardState extends State<ChildDashboard> {
         margin: const EdgeInsets.only(bottom: 16),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: completed ? color.withOpacity(0.15) : AppTheme.surface,
+          color: completed ? color.withOpacity(0.15) : colorScheme.surface,
           borderRadius: BorderRadius.circular(24),
           border: completed ? Border.all(color: AppTheme.success, width: 3) : null,
           boxShadow: [
@@ -432,7 +434,7 @@ class _ChildDashboardState extends State<ChildDashboard> {
                     style: GoogleFonts.fredoka(
                       fontSize: 22,
                       fontWeight: FontWeight.w700,
-                      color: completed ? AppTheme.success : AppTheme.textPrimary,
+                      color: completed ? AppTheme.success : colorScheme.onSurface,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -440,7 +442,7 @@ class _ChildDashboardState extends State<ChildDashboard> {
                     timeHint,
                     style: GoogleFonts.fredoka(
                       fontSize: 15,
-                      color: AppTheme.textSecondary,
+                      color: colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ],
@@ -470,11 +472,13 @@ class _ChildDashboardState extends State<ChildDashboard> {
       case 'Counting': return const Color(0xFF4ECDC4);
       case 'Basic Math': return const Color(0xFF45B7D1);
       case 'Advanced Math': return const Color(0xFF96CEB4);
-      default: return AppTheme.primary;
+      default: return AppTheme.seedColor;
     }
   }
 
   Widget _buildEmptyState() {
+    final colorScheme = Theme.of(context).colorScheme;
+    
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(40),
@@ -484,7 +488,7 @@ class _ChildDashboardState extends State<ChildDashboard> {
             Icon(
               Icons.sentiment_satisfied_alt_rounded,
               size: 90,
-              color: AppTheme.secondary.withOpacity(0.6),
+              color: colorScheme.secondary.withOpacity(0.6),
             ),
             const SizedBox(height: 24),
             Text(
@@ -492,7 +496,7 @@ class _ChildDashboardState extends State<ChildDashboard> {
               style: GoogleFonts.fredoka(
                 fontSize: 24,
                 fontWeight: FontWeight.w600,
-                color: AppTheme.textPrimary,
+                color: colorScheme.onSurface,
               ),
               textAlign: TextAlign.center,
             ),
@@ -501,7 +505,7 @@ class _ChildDashboardState extends State<ChildDashboard> {
               "Your parent will add some fun learning soon!",
               style: GoogleFonts.fredoka(
                 fontSize: 16,
-                color: AppTheme.textSecondary,
+                color: colorScheme.onSurfaceVariant,
               ),
               textAlign: TextAlign.center,
             ),
