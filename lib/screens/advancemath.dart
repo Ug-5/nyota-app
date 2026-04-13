@@ -108,8 +108,9 @@ class _AdvancedMathActivityScreenState extends State<AdvancedMathActivityScreen>
     }
 
     setState(() {
-      if (widget.sessionMode == 'multiplication') isMultiplication = true;
-      else if (widget.sessionMode == 'division') isMultiplication = false;
+      if (widget.sessionMode == 'multiplication') {
+        isMultiplication = true;
+      } else if (widget.sessionMode == 'division') isMultiplication = false;
       else isMultiplication = Random().nextBool();
 
       final maxNum = [5, 7, 10, 12][currentLevel - 1].clamp(5, 12);
@@ -618,7 +619,7 @@ class _AdvancedMathActivityScreenState extends State<AdvancedMathActivityScreen>
                   Expanded(
                     child: LinearProgressIndicator(
                       value: (currentTrial + 1) / (questionsPerLevel * maxLevel),
-                      backgroundColor: colorScheme.surfaceVariant,
+                      backgroundColor: colorScheme.surfaceContainerHighest,
                       color: colorScheme.primary,
                       minHeight: 14.h,
                       borderRadius: BorderRadius.circular(7.r),
@@ -675,7 +676,7 @@ class _AdvancedMathActivityScreenState extends State<AdvancedMathActivityScreen>
                         color: isHinted ? AppTheme.success.withOpacity(0.25) : colorScheme.surface,
                         borderRadius: BorderRadius.circular(24.r),
                         border: Border.all(
-                          color: isHinted ? AppTheme.success : colorScheme.surfaceVariant,
+                          color: isHinted ? AppTheme.success : colorScheme.surfaceContainerHighest,
                           width: isHinted ? 7.w : 3.w,
                         ),
                       ),
@@ -702,7 +703,7 @@ class _AdvancedMathActivityScreenState extends State<AdvancedMathActivityScreen>
                   decoration: BoxDecoration(
                     color: Colors.white.withOpacity(0.9),
                     borderRadius: BorderRadius.circular(20.r),
-                    boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 4)],
+                    boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4)],
                   ),
                   child: Text(
                     "Time left: ${widget.maxDurationMinutes! - DateTime.now().difference(sessionStartTime!).inMinutes} min",

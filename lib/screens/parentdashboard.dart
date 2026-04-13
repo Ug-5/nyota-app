@@ -108,7 +108,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
                 obscureText: true,
                 keyboardType: TextInputType.number,
                 maxLength: 6,
-                decoration: InputDecoration(labelText: 'Enter PIN', counterText: '', border: OutlineInputBorder(borderRadius: BorderRadius.circular(16.r)), filled: true, fillColor: colorScheme.surfaceVariant),
+                decoration: InputDecoration(labelText: 'Enter PIN', counterText: '', border: OutlineInputBorder(borderRadius: BorderRadius.circular(16.r)), filled: true, fillColor: colorScheme.surfaceContainerHighest),
               ),
               SizedBox(height: 12.h),
               TextField(
@@ -116,7 +116,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
                 obscureText: true,
                 keyboardType: TextInputType.number,
                 maxLength: 6,
-                decoration: InputDecoration(labelText: 'Confirm PIN', counterText: '', border: OutlineInputBorder(borderRadius: BorderRadius.circular(16.r)), filled: true, fillColor: colorScheme.surfaceVariant),
+                decoration: InputDecoration(labelText: 'Confirm PIN', counterText: '', border: OutlineInputBorder(borderRadius: BorderRadius.circular(16.r)), filled: true, fillColor: colorScheme.surfaceContainerHighest),
               ),
             ],
           ),
@@ -125,11 +125,11 @@ class _ParentDashboardState extends State<ParentDashboard> {
             ElevatedButton(
               onPressed: () async {
                 if (pinController.text.length < 4) {
-                  ScaffoldMessenger.of(dialogContext).showSnackBar(SnackBar(content: const Text('PIN must be at least 4 digits'), backgroundColor: AppTheme.error));
+                  ScaffoldMessenger.of(dialogContext).showSnackBar(const SnackBar(content: Text('PIN must be at least 4 digits'), backgroundColor: AppTheme.error));
                   return;
                 }
                 if (pinController.text != confirmController.text) {
-                  ScaffoldMessenger.of(dialogContext).showSnackBar(SnackBar(content: const Text('PINs do not match'), backgroundColor: AppTheme.error));
+                  ScaffoldMessenger.of(dialogContext).showSnackBar(const SnackBar(content: Text('PINs do not match'), backgroundColor: AppTheme.error));
                   return;
                 }
                 final prefs = await SharedPreferences.getInstance();
@@ -170,7 +170,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
                   keyboardType: TextInputType.number,
                   maxLength: 6,
                   autofocus: true,
-                  decoration: InputDecoration(labelText: 'Enter PIN', counterText: '', border: OutlineInputBorder(borderRadius: BorderRadius.circular(16.r)), filled: true, fillColor: colorScheme.surfaceVariant),
+                  decoration: InputDecoration(labelText: 'Enter PIN', counterText: '', border: OutlineInputBorder(borderRadius: BorderRadius.circular(16.r)), filled: true, fillColor: colorScheme.surfaceContainerHighest),
                 ),
               ],
             ),
@@ -198,7 +198,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
       isRetry = true;
       pinController.clear();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Incorrect PIN'), backgroundColor: AppTheme.error, duration: const Duration(seconds: 2)));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Incorrect PIN'), backgroundColor: AppTheme.error, duration: Duration(seconds: 2)));
       }
     }
     return false;
@@ -265,7 +265,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
 
   void _downloadReport() {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: const Text('Report downloaded (placeholder)'), backgroundColor: AppTheme.success),
+      const SnackBar(content: Text('Report downloaded (placeholder)'), backgroundColor: AppTheme.success),
     );
   }
 
@@ -332,7 +332,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
                       title: Text("Sound Effects", style: GoogleFonts.fredoka(fontSize: 16.sp, fontWeight: FontWeight.w500)),
                       subtitle: Text("Play voice instructions during activities", style: GoogleFonts.fredoka(fontSize: 13.sp, color: colorScheme.onSurfaceVariant)),
                       value: _soundEnabled,
-                      activeColor: colorScheme.secondary,
+                      activeThumbColor: colorScheme.secondary,
                       onChanged: (v) async {
                         setState(() => _soundEnabled = v);
                         final prefs = await SharedPreferences.getInstance();
@@ -344,7 +344,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
                       title: Text("Dark Mode", style: GoogleFonts.fredoka(fontSize: 16.sp, fontWeight: FontWeight.w500)),
                       subtitle: Text("Reduce eye strain at night", style: GoogleFonts.fredoka(fontSize: 13.sp, color: colorScheme.onSurfaceVariant)),
                       value: themeProvider.isDarkMode,  // ← Use themeProvider
-                      activeColor: colorScheme.secondary,
+                      activeThumbColor: colorScheme.secondary,
                       onChanged: (value) async {
                         // Update the global theme provider
                         themeProvider.toggleDarkMode(value);
@@ -501,15 +501,15 @@ class _ParentDashboardState extends State<ParentDashboard> {
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
           ElevatedButton(
             onPressed: () async {
               if (pinController.text.length < 4) {
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('PIN must be at least 4 digits'), backgroundColor: AppTheme.error));
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PIN must be at least 4 digits'), backgroundColor: AppTheme.error));
                 return;
               }
               if (pinController.text != confirmController.text) {
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('PINs do not match'), backgroundColor: AppTheme.error));
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PINs do not match'), backgroundColor: AppTheme.error));
                 return;
               }
               final prefs = await SharedPreferences.getInstance();
@@ -517,7 +517,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
               Navigator.pop(context, true);
             },
             style: ElevatedButton.styleFrom(backgroundColor: colorScheme.primary),
-            child: Text('Save'),
+            child: const Text('Save'),
           ),
         ],
       ),
@@ -525,7 +525,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
 
     if (changed == true && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: const Text('PIN changed successfully'), backgroundColor: AppTheme.success),
+        const SnackBar(content: Text('PIN changed successfully'), backgroundColor: AppTheme.success),
       );
     }
   }
@@ -644,7 +644,7 @@ class _ScheduleEditorBottomSheetState extends State<_ScheduleEditorBottomSheet> 
                         borderRadius: BorderRadius.circular(16.r),
                         child: Container(
                           padding: EdgeInsets.symmetric(vertical: 14.h, horizontal: 16.w),
-                          decoration: BoxDecoration(color: colorScheme.surfaceVariant, borderRadius: BorderRadius.circular(16.r)),
+                          decoration: BoxDecoration(color: colorScheme.surfaceContainerHighest, borderRadius: BorderRadius.circular(16.r)),
                           child: Row(
                             children: [
                               Icon(Icons.access_time_rounded, size: 20.w, color: colorScheme.primary),

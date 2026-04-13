@@ -1,134 +1,122 @@
-// lib/theme/app_theme.dart
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class AppTheme {
-  // ──────────────────────────────────────────────
-  //   Core Seed Color – defines the entire harmonious palette
-  // ──────────────────────────────────────────────
-  static const Color seedColor = Color(0xFFE0A78A); // your beautiful muted peach/terracotta
+  // 🌿 Primary Seed: Muted Slate Blue (Calming and professional)
+  static const Color seedColor = Color(0xFF6C8EAD); 
 
-  // ──────────────────────────────────────────────
-  //   Custom fixed colors (when needed outside scheme)
-  // ──────────────────────────────────────────────
-  static const Color success = Color(0xFFA8BFA8);
-  static const Color error = Color(0xFFE89A9A);
-  static const Color warning = Color(0xFFE8C39A);
+  // ✅ Functional Colors (Muted to prevent sensory overload)
+  static const Color success = Color(0xFF8DAA91); // Sage Green
+  static const Color error = Color(0xFFC78383);   // Muted Terracotta
+  static const Color warning = Color(0xFFD4B483); // Soft Sand
 
-  // Activity-specific accent colors (soft & muted)
+  // 🎨 Activity colors (Differentiated by hue, but unified by softness)
   static const Map<String, Color> activityColors = {
-    'Shapes': Color(0xFFF4A3A3),        // muted coral rose
-    'Counting': Color(0xFFC2D4C2),      // pale olive/sage
-    'Basic Math': Color(0xFFD9A78F),    // soft dusty orange
-    'Advanced Math': Color(0xFFD9C9B8), // warm taupe/beige
+    'Shapes': Color(0xFF9FB1BC),        // Cool Grey-Blue
+    'Counting': Color(0xFFA5B99F),      // Pale Leaf Green
+    'Basic Math': Color(0xFFD1B29E),    // Warm Dusty Rose
+    'Advanced Math': Color(0xFFB3A5BE), // Soft Lavender
   };
 
-  // ──────────────────────────────────────────────
-  //   Light Theme – Material 3 with seed-based scheme
-  // ──────────────────────────────────────────────
+  // 🌞 LIGHT THEME (Low Contrast / Anti-Glare)
   static ThemeData lightTheme() {
     final colorScheme = ColorScheme.fromSeed(
       seedColor: seedColor,
       brightness: Brightness.light,
-      // Optional: customize tones if needed (higher contrast, etc.)
-      // dynamicSchemeVariant: DynamicSchemeVariant.content, // or fidelity, etc.
+      surface: const Color(0xFFF7F9FB), 
     );
 
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.light,
       colorScheme: colorScheme,
-      scaffoldBackgroundColor: const Color(0xFFFDF8F2), // your warm sand
-      cardColor: colorScheme.surface,
-      dialogBackgroundColor: colorScheme.surface,
+      scaffoldBackgroundColor: const Color(0xFFF7F9FB),
+      cardColor: Colors.white,
 
-      // Apply Fredoka font + correct colors
+      // Rounded fonts like Fredoka are easier to read and less "sharp"
       textTheme: GoogleFonts.fredokaTextTheme(
         ThemeData.light().textTheme.apply(
-          bodyColor: colorScheme.onSurface,
-          displayColor: colorScheme.onSurface,
+          bodyColor: const Color(0xFF2D3436), // Soft grey instead of pure black
+          displayColor: const Color(0xFF2D3436),
         ),
       ),
 
-      // Optional: customize specific components
-      appBarTheme: AppBarTheme(
-        backgroundColor: colorScheme.surface,
-        foregroundColor: colorScheme.onSurface,
+      appBarTheme: const AppBarTheme(
+        backgroundColor: Color(0xFFF7F9FB),
+        foregroundColor: Color(0xFF2D3436),
         elevation: 0,
       ),
+
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: colorScheme.primary,
-          foregroundColor: colorScheme.onPrimary,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          foregroundColor: Colors.white,
+          elevation: 0, // Flat design reduces visual complexity
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16), 
+          ),
         ),
       ),
       
+      dialogTheme: const DialogThemeData(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+      ),
     );
   }
 
-  // ──────────────────────────────────────────────
-  //   Dark Theme – soft, eye-friendly dark mode
-  // ──────────────────────────────────────────────
+  // 🌙 DARK THEME (Low Blue Light)
   static ThemeData darkTheme() {
     final colorScheme = ColorScheme.fromSeed(
       seedColor: seedColor,
       brightness: Brightness.dark,
-      // Ensures harmonious dark variants from the same seed
+      surface: const Color(0xFF242B2E),
     );
 
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
       colorScheme: colorScheme,
-      scaffoldBackgroundColor: const Color(0xFF1A1612), // soft dark warm brown-black
-      cardColor: colorScheme.surfaceContainerLowest,
-      dialogBackgroundColor: colorScheme.surfaceContainerLowest,
+      scaffoldBackgroundColor: const Color(0xFF1B2022),
+      cardColor: const Color(0xFF242B2E),
 
-      // Fredoka font + dark mode text colors
       textTheme: GoogleFonts.fredokaTextTheme(
         ThemeData.dark().textTheme.apply(
-          bodyColor: colorScheme.onSurface,
-          displayColor: colorScheme.onSurface,
+          bodyColor: const Color(0xFFE0E0E0),
+          displayColor: const Color(0xFFE0E0E0),
         ),
       ),
 
-      // Component overrides for dark mode
-      appBarTheme: AppBarTheme(
-        backgroundColor: colorScheme.surfaceContainerLow,
-        foregroundColor: colorScheme.onSurface,
+      appBarTheme: const AppBarTheme(
+        backgroundColor: Color(0xFF1B2022),
         elevation: 0,
       ),
+
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: colorScheme.primary,
-          foregroundColor: colorScheme.onPrimary,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          backgroundColor: colorScheme.primaryContainer,
+          foregroundColor: colorScheme.onPrimaryContainer,
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
         ),
       ),
-     
     );
   }
 
-  // ──────────────────────────────────────────────
-  //   Helpers (unchanged)
-  // ──────────────────────────────────────────────
   static Color getActivityColor(String activityName) {
     return activityColors[activityName] ?? seedColor;
   }
 
   static IconData getActivityIcon(String name) {
     switch (name) {
-      case 'Shapes':
-        return Icons.category;
-      case 'Counting':
-        return Icons.calculate;
-      case 'Basic Math':
-        return Icons.add_circle;
-      case 'Advanced Math':
-        return Icons.grid_view;
-      default:
-        return Icons.star;
+      case 'Shapes': return Icons.interests_rounded; 
+      case 'Counting': return Icons.exposure_plus_1_rounded;
+      case 'Basic Math': return Icons.add_rounded;
+      case 'Advanced Math': return Icons.functions_rounded;
+      default: return Icons.auto_awesome_rounded;
     }
   }
 }
