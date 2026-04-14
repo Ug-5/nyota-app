@@ -722,7 +722,7 @@ class _BasicMathActivityScreenState extends State<BasicMathActivityScreen>
                 textAlign: TextAlign.center,
               ),
               SizedBox(height: 32.h),
-              // Answer cards with visual feedback
+              
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: 24.w),
                 child: Row(
