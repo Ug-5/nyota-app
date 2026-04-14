@@ -1,7 +1,3 @@
-// FIXED VERSION - CountingActivityScreen
-// All original logic, flow, level progression, rewards, TTS, objects, etc. preserved exactly.
-// Only minimal fixes applied for the 3 issues you reported.
-
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
@@ -11,7 +7,6 @@ import 'package:nyota/theme.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter/services.dart';
-
 class CountingActivityScreen extends StatefulWidget {
   final VoidCallback onSessionComplete;
   final String? rewardImagePath;
