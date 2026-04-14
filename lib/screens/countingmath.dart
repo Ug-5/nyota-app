@@ -7,6 +7,7 @@ import 'package:nyota/theme.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter/services.dart';
+
 class CountingActivityScreen extends StatefulWidget {
   final VoidCallback onSessionComplete;
   final String? rewardImagePath;
@@ -24,13 +25,14 @@ class CountingActivityScreen extends StatefulWidget {
 }
 
 class _CountingActivityScreenState extends State<CountingActivityScreen>
-    with TickerProviderStateMixin {   // Safe for multiple animations (future-proof)
+    with TickerProviderStateMixin {
 
   // Level and sublevel structure
   int currentLevel = 1;
   int currentSubLevel = 1;
-  int maxLevel = 3;
+   int maxLevel = 3;
   final List<int> subLevelsPerLevel = [4, 4, 4];
+   int questionsPerLevel = 4; // Used for progress calculation
 
   int currentTrial = 0;
   int totalCorrect = 0;
@@ -87,7 +89,6 @@ class _CountingActivityScreenState extends State<CountingActivityScreen>
     await selectFemaleVoice();
   }
 
-  /// Improved female voice selection (fixes male voice issue)
   Future<void> selectFemaleVoice() async {
     try {
       final voices = await flutterTts.getVoices;
@@ -95,19 +96,19 @@ class _CountingActivityScreenState extends State<CountingActivityScreen>
         for (var voice in voices) {
           final name = voice['name']?.toString().toLowerCase() ?? '';
           final gender = voice['gender']?.toString().toLowerCase() ?? '';
-          if (gender.contains('female') || name.contains('female') || name.contains('karen') || name.contains('samantha')) {
+          if (gender.contains('female') || name.contains('female') ||
+              name.contains('karen') || name.contains('samantha')) {
             await flutterTts.setVoice(voice);
             return;
           }
         }
       }
 
-      // Reliable fallback female voices (most devices support at least one)
       const femaleNames = [
         "en-us-x-tmd#female-1",
         "en-us-x-tmd#female-2",
-        "Karen",                    // iOS common female
-        "Samantha",                 // iOS female
+        "Karen",
+        "Samantha",
         "Google UK English Female",
         "Microsoft Zira Desktop",
       ];
@@ -122,7 +123,7 @@ class _CountingActivityScreenState extends State<CountingActivityScreen>
     } catch (e) {
       debugPrint("Voice selection error: $e");
     }
-    debugPrint("⚠️ Using system default voice (may be male)");
+    debugPrint("⚠️ Using system default voice");
   }
 
   Future<void> speak(String text) async {
@@ -233,17 +234,17 @@ class _CountingActivityScreenState extends State<CountingActivityScreen>
         showSmallReward();
       }
       Future.delayed(const Duration(milliseconds: 1800), () {
-        if (!mounted) return;
-        advanceTrial();
+        if (mounted) advanceTrial();
       });
     } else {
       speak("Let's count again.");
-      Future.delayed(const Duration(milliseconds: 1200), () {
-        if (!mounted) return;
-        setState(() {
-          hasAnswered = false;
-          showPrompt = false;
-        });
+      Future.delayed(const Duration(milliseconds: 1400), () {
+        if (mounted) {
+          setState(() {
+            hasAnswered = false;
+            showPrompt = false;
+          });
+        }
       });
     }
   }
@@ -253,15 +254,13 @@ class _CountingActivityScreenState extends State<CountingActivityScreen>
     if (rewardCounter % 4 == 0) {
       if (currentSubLevel < subLevelsPerLevel[currentLevel - 1]) {
         currentSubLevel++;
+      } else if (currentLevel < maxLevel) {
+        currentLevel++;
+        currentSubLevel = 1;
       } else {
-        if (currentLevel < maxLevel) {
-          currentLevel++;
-          currentSubLevel = 1;
-        } else {
-          saveLevel();
-          _endSessionGracefully();
-          return;
-        }
+        saveLevel();
+        _endSessionGracefully();
+        return;
       }
       saveLevel();
     }
@@ -275,42 +274,31 @@ class _CountingActivityScreenState extends State<CountingActivityScreen>
       transitionDuration: const Duration(milliseconds: 400),
       pageBuilder: (_, __, ___) => Center(
         child: ScaleTransition(
-            scale: CurvedAnimation(
-                parent: fingerController..forward(from: 0.7),
-                curve: Curves.elasticOut),
-            child: Container(
-              padding: EdgeInsets.symmetric(horizontal: 40.w, vertical: 30.h),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(32.r),
-                boxShadow: [
-                  BoxShadow(
-                      color: Colors.amber.withOpacity(0.3),
-                      blurRadius: 18,
-                      spreadRadius: 6)
-                ],
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.emoji_events, color: Colors.amber, size: 60.w),
-                  SizedBox(height: 12.h),
-                  Text(
-                    "Reward!",
-                    style: GoogleFonts.fredoka(
-                        fontSize: 32.sp,
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.success),
-                    textAlign: TextAlign.center,
-                  ),
-                  SizedBox(height: 8.h),
-                  Text(
-                    "You got 2 in a row!",
-                    style: GoogleFonts.fredoka(fontSize: 22.sp),
-                  ),
-                ],
-              ),
-            )),
+          scale: CurvedAnimation(
+            parent: fingerController..forward(from: 0.7),
+            curve: Curves.elasticOut,
+          ),
+          child: Container(
+            padding: EdgeInsets.symmetric(horizontal: 40.w, vertical: 30.h),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(32.r),
+              boxShadow: [
+                BoxShadow(color: Colors.amber.withOpacity(0.3), blurRadius: 18, spreadRadius: 6)
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.emoji_events, color: Colors.amber, size: 60.w),
+                SizedBox(height: 12.h),
+                Text("Reward!", style: GoogleFonts.fredoka(fontSize: 32.sp, fontWeight: FontWeight.bold, color: AppTheme.success)),
+                SizedBox(height: 8.h),
+                Text("You got 2 in a row!", style: GoogleFonts.fredoka(fontSize: 22.sp)),
+              ],
+            ),
+          ),
+        ),
       ),
     ).then((_) => fingerController.reset());
   }
@@ -323,14 +311,7 @@ class _CountingActivityScreenState extends State<CountingActivityScreen>
   }
 
   void showBeautifulReinforcement() {
-    final messages = [
-      "Fantastic!",
-      "Super!",
-      "Awesome!",
-      "Great job!",
-      "You're a star!",
-      "Yes! Well done!"
-    ];
+    final messages = ["Fantastic!", "Super!", "Awesome!", "Great job!", "You're a star!", "Yes! Well done!"];
     final message = messages[Random().nextInt(messages.length)];
 
     showGeneralDialog(
@@ -339,34 +320,20 @@ class _CountingActivityScreenState extends State<CountingActivityScreen>
       transitionDuration: const Duration(milliseconds: 400),
       pageBuilder: (_, __, ___) => Center(
         child: ScaleTransition(
-          scale: CurvedAnimation(
-              parent: fingerController..forward(from: 0.7),
-              curve: Curves.elasticOut),
+          scale: CurvedAnimation(parent: fingerController..forward(from: 0.7), curve: Curves.elasticOut),
           child: Container(
             padding: EdgeInsets.symmetric(horizontal: 50.w, vertical: 40.h),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(40.r),
-              boxShadow: [
-                BoxShadow(
-                    color: Colors.amber.withOpacity(0.5),
-                    blurRadius: 30,
-                    spreadRadius: 10)
-              ],
+              boxShadow: [BoxShadow(color: Colors.amber.withOpacity(0.5), blurRadius: 30, spreadRadius: 10)],
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(Icons.star_rounded, color: Colors.amber, size: 90.w),
                 SizedBox(height: 16.h),
-                Text(
-                  message,
-                  style: GoogleFonts.fredoka(
-                      fontSize: 46.sp,
-                      fontWeight: FontWeight.bold,
-                      color: AppTheme.success),
-                  textAlign: TextAlign.center,
-                ),
+                Text(message, style: GoogleFonts.fredoka(fontSize: 46.sp, fontWeight: FontWeight.bold, color: AppTheme.success)),
               ],
             ),
           ),
@@ -375,7 +342,6 @@ class _CountingActivityScreenState extends State<CountingActivityScreen>
     ).then((_) => fingerController.reset());
   }
 
-  // FIXED: Hint now reliably counts EVERY object (no skipping)
   void showFingerHint() async {
     if (showHint) return;
 
@@ -394,14 +360,12 @@ class _CountingActivityScreenState extends State<CountingActivityScreen>
     }
 
     await Future.delayed(const Duration(milliseconds: 400));
-    if (mounted) {
-      setState(() => showHint = false);
-    }
+    if (mounted) setState(() => showHint = false);
   }
 
   Widget buildObjects(int count) {
     if (currentLevel == 1) {
-      String img = objectImages[0];
+      final img = objectImages[0];
       return Wrap(
         spacing: 24.w,
         runSpacing: 24.h,
@@ -411,12 +375,7 @@ class _CountingActivityScreenState extends State<CountingActivityScreen>
           return AnimatedScale(
             scale: isHighlighted ? 1.28 : 1.0,
             duration: const Duration(milliseconds: 200),
-            child: Image.asset(
-              img,
-              width: 56.w,
-              height: 56.w,
-              color: isHighlighted ? Colors.amberAccent : null,
-            ),
+            child: Image.asset(img, width: 56.w, height: 56.w, color: isHighlighted ? Colors.amberAccent : null),
           );
         }),
       );
@@ -427,21 +386,16 @@ class _CountingActivityScreenState extends State<CountingActivityScreen>
         alignment: WrapAlignment.center,
         children: List.generate(count, (index) {
           final isHighlighted = showHint && index == currentHintIndex;
-          String img = objectImages[index % objectImages.length];
+          final img = objectImages[index % objectImages.length];
           return AnimatedScale(
             scale: isHighlighted ? 1.28 : 1.0,
             duration: const Duration(milliseconds: 200),
-            child: Image.asset(
-              img,
-              width: 56.w,
-              height: 56.w,
-              color: isHighlighted ? Colors.amberAccent : null,
-            ),
+            child: Image.asset(img, width: 56.w, height: 56.w, color: isHighlighted ? Colors.amberAccent : null),
           );
         }),
       );
     } else {
-      String img = objectImages[2];
+      final img = objectImages[2];
       return Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -454,12 +408,7 @@ class _CountingActivityScreenState extends State<CountingActivityScreen>
               return AnimatedScale(
                 scale: isHighlighted ? 1.28 : 1.0,
                 duration: const Duration(milliseconds: 200),
-                child: Image.asset(
-                  img,
-                  width: 56.w,
-                  height: 56.w,
-                  color: isHighlighted ? Colors.amberAccent : null,
-                ),
+                child: Image.asset(img, width: 56.w, height: 56.w, color: isHighlighted ? Colors.amberAccent : null),
               );
             }),
           ),
@@ -477,13 +426,10 @@ class _CountingActivityScreenState extends State<CountingActivityScreen>
         content: const Text('Your progress will be saved. Are you sure?'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              widget.onSessionComplete();
-            },
-            child: const Text('Exit'),
-          ),
+          ElevatedButton(onPressed: () {
+            Navigator.pop(context);
+            widget.onSessionComplete();
+          }, child: const Text('Exit')),
         ],
       ),
     );
@@ -531,90 +477,72 @@ class _CountingActivityScreenState extends State<CountingActivityScreen>
                 padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
                 decoration: BoxDecoration(
                   color: colorScheme.surface,
-                  boxShadow: [
-                    BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 4)
-                  ],
+                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 4)],
                 ),
                 child: Row(
                   children: [
                     IconButton(
                       onPressed: showExitConfirmation,
-                      icon: Icon(Icons.arrow_back_rounded,
-                          size: 30.w, color: colorScheme.primary),
+                      icon: Icon(Icons.arrow_back_rounded, size: 30.w, color: colorScheme.primary),
                     ),
                     const Spacer(),
                     Text(
                       'Counting',
-                      style: GoogleFonts.fredoka(
-                          fontSize: 26.sp,
-                          fontWeight: FontWeight.w500,
-                          color: colorScheme.primary),
+                      style: GoogleFonts.fredoka(fontSize: 26.sp, fontWeight: FontWeight.w500, color: colorScheme.primary),
                     ),
                     const Spacer(),
-                    GestureDetector(
-                      onTap: showFingerHint,
-                      child: Container(
-                        padding: EdgeInsets.all(8.w),
-                        decoration: BoxDecoration(
-                          color: Colors.orangeAccent.withOpacity(0.1),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          Icons.lightbulb_outline_rounded,
-                          size: 32.w,
-                          color: Colors.orangeAccent.withOpacity(0.8),
-                        ),
-                      ),
+                    IconButton(
+                      onPressed: showFingerHint,
+                      icon: Icon(Icons.lightbulb_outline_rounded, size: 32.w, color: Colors.orangeAccent),
                     ),
-                    SizedBox(width: 8.w),
                     IconButton(
                       onPressed: restartActivity,
-                      icon: Icon(Icons.refresh_rounded,
-                          size: 30.w, color: Colors.orange.withOpacity(0.8)),
+                      icon: Icon(Icons.refresh_rounded, size: 30.w, color: Colors.orange),
                     ),
                   ],
                 ),
               ),
-              // Progress bar
+
+              // Progress Bar
               Padding(
                 padding: EdgeInsets.fromLTRB(24.w, 16.h, 24.w, 8.h),
                 child: LinearProgressIndicator(
-                  value: (rewardCounter + 1) /
-                      (subLevelsPerLevel.reduce((a, b) => a + b) * 2),
+                  value: (rewardCounter + 1) / (subLevelsPerLevel.reduce((a, b) => a + b) * 2),
                   backgroundColor: colorScheme.surfaceContainerHighest,
                   color: colorScheme.primary,
                   minHeight: 14.h,
                   borderRadius: BorderRadius.circular(10.r),
                 ),
               ),
+
               SizedBox(height: 24.h),
               Text(
                 "Level $currentLevel  |  Sublevel $currentSubLevel",
                 style: GoogleFonts.fredoka(fontSize: 22.sp, color: colorScheme.primary),
               ),
               SizedBox(height: 18.h),
+
+              // Objects Area
               Card(
                 elevation: 3,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(40.r),
-                ),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(40.r)),
                 margin: EdgeInsets.symmetric(horizontal: 24.w),
                 child: Container(
                   width: double.infinity,
                   constraints: BoxConstraints(minHeight: 260.h),
                   padding: EdgeInsets.all(20.w),
-                  child: Center(
-                    child: buildObjects(targetCount),
-                  ),
+                  child: Center(child: buildObjects(targetCount)),
                 ),
               ),
+
               SizedBox(height: 32.h),
               Text(
                 getInstructionText(),
                 style: GoogleFonts.fredoka(fontSize: 24.sp, color: colorScheme.primary),
               ),
               SizedBox(height: 40.h),
-              // FIXED: Answer buttons now fully responsive (HitTestBehavior + mounted checks)
+
+              // Answer Choices
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: 24.w),
                 child: Row(
@@ -622,32 +550,23 @@ class _CountingActivityScreenState extends State<CountingActivityScreen>
                   children: choices.map((num) {
                     final isCorrectChoice = num == targetCount && showPrompt;
                     return GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: hasAnswered ? null : () => handleTap(num),
+                      onTap: () => handleTap(num),
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 180),
                         width: 118.w,
                         height: 130.h,
                         decoration: BoxDecoration(
-                          color: isCorrectChoice
-                              ? Colors.green.withOpacity(0.2)
-                              : colorScheme.surface,
+                          color: isCorrectChoice ? Colors.green.withOpacity(0.2) : colorScheme.surface,
                           borderRadius: BorderRadius.circular(32.r),
                           border: Border.all(
-                            color: isCorrectChoice
-                                ? Colors.green
-                                : colorScheme.primary.withOpacity(0.3),
+                            color: isCorrectChoice ? Colors.green : colorScheme.primary.withOpacity(0.3),
                             width: isCorrectChoice ? 7.w : 4.w,
                           ),
                         ),
                         child: Center(
                           child: Text(
                             num.toString(),
-                            style: GoogleFonts.fredoka(
-                              fontSize: 56.sp,
-                              fontWeight: FontWeight.w700,
-                              color: colorScheme.primary,
-                            ),
+                            style: GoogleFonts.fredoka(fontSize: 56.sp, fontWeight: FontWeight.w700, color: colorScheme.primary),
                           ),
                         ),
                       ),
@@ -655,6 +574,7 @@ class _CountingActivityScreenState extends State<CountingActivityScreen>
                   }).toList(),
                 ),
               ),
+
               SizedBox(height: 40.h),
               if (showHint)
                 Padding(
@@ -664,11 +584,14 @@ class _CountingActivityScreenState extends State<CountingActivityScreen>
                     style: GoogleFonts.fredoka(fontSize: 20.sp, color: Colors.orange),
                   ),
                 ),
-              SizedBox(height: 30.h),
+
               if (widget.maxDurationMinutes != null && sessionStartTime != null)
-                Text(
-                  "Time left: ${widget.maxDurationMinutes! - DateTime.now().difference(sessionStartTime!).inMinutes} min",
-                  style: GoogleFonts.fredoka(fontSize: 18.sp),
+                Padding(
+                  padding: EdgeInsets.only(bottom: 20.h),
+                  child: Text(
+                    "Time left: ${widget.maxDurationMinutes! - DateTime.now().difference(sessionStartTime!).inMinutes} min",
+                    style: GoogleFonts.fredoka(fontSize: 18.sp),
+                  ),
                 ),
             ],
           ),

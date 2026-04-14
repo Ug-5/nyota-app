@@ -137,7 +137,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen>
             child: Container(
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(24 * scaleFactor),
-                color: colorScheme.surfaceVariant,
+                color: colorScheme.surfaceContainerHighest,
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withOpacity(0.08),

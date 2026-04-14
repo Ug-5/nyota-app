@@ -1,17 +1,17 @@
-// lib/providers/theme_provider.dart
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ThemeProvider extends ChangeNotifier {
-  // Change default from system to light
-  ThemeMode _themeMode = ThemeMode.light; // ← CHANGED: default to light theme
+  // Default to system settings for better accessibility
+  ThemeMode _themeMode = ThemeMode.system; 
   static const String _themeKey = 'theme_mode';
 
   ThemeMode get themeMode => _themeMode;
 
   bool get isDarkMode {
     if (_themeMode == ThemeMode.system) {
-      return WidgetsBinding.instance.platformDispatcher.platformBrightness == Brightness.dark;
+      final brightness = WidgetsBinding.instance.platformDispatcher.platformBrightness;
+      return brightness == Brightness.dark;
     }
     return _themeMode == ThemeMode.dark;
   }
@@ -21,29 +21,35 @@ class ThemeProvider extends ChangeNotifier {
   }
 
   Future<void> _loadTheme() async {
-    final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getString(_themeKey);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = prefs.getString(_themeKey);
 
-    if (saved != null) {
-      // If there's a saved preference, use it
-      _themeMode = ThemeMode.values.firstWhere(
-        (e) => e.toString() == saved,
-        orElse: () => ThemeMode.light, // ← FALLBACK to light if invalid
-      );
-      notifyListeners();
-    } else {
-      // No saved preference, use light theme
-      _themeMode = ThemeMode.light;
+      if (saved != null) {
+        _themeMode = ThemeMode.values.firstWhere(
+          (e) => e.toString() == saved,
+          orElse: () => ThemeMode.system,
+        );
+      }
+    } catch (e) {
+      _themeMode = ThemeMode.system;
+    } finally {
       notifyListeners();
     }
   }
 
   Future<void> setThemeMode(ThemeMode mode) async {
+    if (_themeMode == mode) return;
+
     _themeMode = mode;
     notifyListeners();
 
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_themeKey, mode.toString());
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_themeKey, mode.toString());
+    } catch (e) {
+      debugPrint('Error saving theme: $e');
+    }
   }
 
   void toggleDarkMode(bool value) {
