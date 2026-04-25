@@ -21,10 +21,16 @@ class _NyotaLoginPageState extends State<NyotaLoginPage> {
   final _formKey = GlobalKey<FormState>();
 
   @override
-  void dispose() {
-    _emailController.dispose();
-    _passwordController.dispose();
-    super.dispose();
+  void initState() {
+    super.initState();
+    _checkIfAlreadyLoggedIn();
+  }
+
+  Future<void> _checkIfAlreadyLoggedIn() async {
+    if (FirebaseAuth.instance.currentUser != null) {
+      if (!mounted) return;
+      Navigator.pushNamedAndRemoveUntil(context, '/main-dashboard', (route) => false);
+    }
   }
 
   Future<void> _handleLogin() async {
@@ -39,53 +45,15 @@ class _NyotaLoginPageState extends State<NyotaLoginPage> {
       );
 
       if (!mounted) return;
-      Navigator.pushNamedAndRemoveUntil(
-        context,
-        '/main-dashboard',
-        (route) => false,
-      );
+      Navigator.pushNamedAndRemoveUntil(context, '/main-dashboard', (route) => false);
     } on FirebaseAuthException catch (e) {
-      String msg;
-      switch (e.code) {
-        case 'user-not-found':
-          msg = 'No account found with this email.';
-          break;
-        case 'wrong-password':
-          msg = 'Incorrect password.';
-          break;
-        case 'invalid-email':
-          msg = 'Invalid email format.';
-          break;
-        case 'user-disabled':
-          msg = 'This account has been disabled.';
-          break;
-        case 'too-many-requests':
-          msg = 'Too many attempts. Please try again later.';
-          break;
-        default:
-          msg = e.message ?? 'Login failed. Please try again.';
-      }
-
+      String msg = e.message ?? 'Login failed';
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(msg, style: GoogleFonts.fredoka()),
-          backgroundColor: AppTheme.error,
-          duration: const Duration(seconds: 4),
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('An unexpected error occurred'),
-          backgroundColor: AppTheme.error,
-        ),
+        SnackBar(content: Text(msg, style: GoogleFonts.fredoka()), backgroundColor: AppTheme.error),
       );
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 

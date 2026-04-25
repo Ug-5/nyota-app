@@ -13,8 +13,8 @@ import 'package:nyota/theme.dart';
 // Animated finger tutorial widget
 // ─────────────────────────────────────────────────────────────────────────────
 class _FingerTutorial extends StatefulWidget {
-  final Offset start;   // screen-space centre of start target
-  final Offset? end;    // if set → drag mode (level 3)
+  final Offset start;
+  final Offset? end;
   final VoidCallback onDone;
 
   const _FingerTutorial({
@@ -45,7 +45,6 @@ class _FingerTutorialState extends State<_FingerTutorial>
         vsync: this, duration: Duration(milliseconds: ms));
 
     if (_isDrag) {
-      // appear → grab → slide to target → release → fade
       _dx = TweenSequence<double>([
         TweenSequenceItem(tween: ConstantTween(0.0), weight: 12),
         TweenSequenceItem(tween: ConstantTween(0.0), weight: 10),
@@ -78,7 +77,6 @@ class _FingerTutorialState extends State<_FingerTutorial>
             tween: Tween(begin: 1.0, end: 0.0), weight: 10),
       ]).animate(_ctrl);
     } else {
-      // drop in → tap down → lift → tap down → lift → fade
       _dy = TweenSequence<double>([
         TweenSequenceItem(
             tween: Tween(begin: -28.0, end: 0.0)
@@ -131,7 +129,6 @@ class _FingerTutorialState extends State<_FingerTutorial>
       if (s == AnimationStatus.completed) widget.onDone();
     });
 
-    // Brief settle delay before the finger appears
     Future.delayed(const Duration(milliseconds: 550),
         () { if (mounted) _ctrl.forward(); });
   }
@@ -184,13 +181,13 @@ class _FingerTutorialState extends State<_FingerTutorial>
 class CountingActivityScreen extends StatefulWidget {
   final VoidCallback onSessionComplete;
   final String? rewardImagePath;
-  final int? maxDurationMinutes;
+  final int sessionDuration; // in minutes, required
 
   const CountingActivityScreen({
     super.key,
     required this.onSessionComplete,
     this.rewardImagePath,
-    this.maxDurationMinutes,
+    required this.sessionDuration,
   });
 
   @override
@@ -216,7 +213,7 @@ class _CountingActivityScreenState extends State<CountingActivityScreen>
   int targetCount = 0;
   List<int> choices = [];
   bool hasAnswered = false;
-  bool showNextButton = false;   // ← paces the child manually
+  bool showNextButton = false;
 
   bool showHint = false;
   bool isCountingHint = false;
@@ -225,15 +222,19 @@ class _CountingActivityScreenState extends State<CountingActivityScreen>
   int _wrongAttempts = 0;
   bool _hintRunning = false;
 
+  // ── Session management ──────────────────────────────────────────────────────
+  bool _sessionTimerExpired = false;
+  bool _allLevelsComplete = false;
+  Timer? _sessionTimer;
+  int _remainingSeconds = 0;
+
   // ── Tutorial state ───────────────────────────────────────────────────────────
   bool _showTutorial = false;
   Offset? _tutorialStart;
   Offset? _tutorialEnd;
-  // Which levels have already shown their tutorial
   final Set<int> _tutorialShownForLevel = {};
 
   // ── Keys ─────────────────────────────────────────────────────────────────────
-  // One key per card position (0,1,2) — NOT per value
   final List<GlobalKey> _choiceKeys = [GlobalKey(), GlobalKey(), GlobalKey()];
   final GlobalKey _dropZoneKey = GlobalKey();
   final GlobalKey _objectsAreaKey = GlobalKey();
@@ -244,7 +245,6 @@ class _CountingActivityScreenState extends State<CountingActivityScreen>
     'assets/images/apple.png',
     'assets/images/banana.png',
     'assets/images/ball.png',
-    'assets/images/star.png',
     'assets/images/car.png',
     'assets/images/cube.png',
   ];
@@ -257,7 +257,6 @@ class _CountingActivityScreenState extends State<CountingActivityScreen>
   late FlutterTts _tts;
   bool _ttsReady = false;
   bool _soundEnabled = true;
-  // Per-utterance completer — resolved by completion/error/cancel handlers
   Completer<void>? _ttsCompleter;
 
   // ── Animations ───────────────────────────────────────────────────────────────
@@ -287,9 +286,28 @@ class _CountingActivityScreenState extends State<CountingActivityScreen>
 
     _initTts();
 
+    // Session timer based on parent schedule
+    _remainingSeconds = widget.sessionDuration * 60;
+    _startSessionTimer();
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadPersistentData().then((_) {
         if (mounted) _generateNewTrial();
+      });
+    });
+  }
+
+  void _startSessionTimer() {
+    _sessionTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!mounted) { t.cancel(); return; }
+      setState(() {
+        if (_remainingSeconds > 0) {
+          _remainingSeconds--;
+        } else {
+          t.cancel();
+          _sessionTimerExpired = true;
+          _endSession(naturalCompletion: true);
+        }
       });
     });
   }
@@ -326,14 +344,10 @@ class _CountingActivityScreenState extends State<CountingActivityScreen>
     _soundEnabled = prefs.getBool('sound_enabled') ?? true;
   }
 
-  /// Stops the current utterance, speaks [text], and awaits completion
-  /// (or [timeout] — whichever comes first) so the hint loop stays in sync
-  /// without ever freezing the UI.
   Future<void> _speak(String text,
       {Duration timeout = const Duration(seconds: 5)}) async {
     if (!mounted || !_ttsReady || !_soundEnabled) return;
 
-    // Resolve any pending completer then stop current speech
     if (_ttsCompleter != null && !_ttsCompleter!.isCompleted) {
       _ttsCompleter!.complete();
     }
@@ -353,6 +367,7 @@ class _CountingActivityScreenState extends State<CountingActivityScreen>
   void dispose() {
     _wrongClearTimer?.cancel();
     _hintAutoTimer?.cancel();
+    _sessionTimer?.cancel();
     _hintRunning = false;
     if (_ttsCompleter != null && !_ttsCompleter!.isCompleted) {
       _ttsCompleter!.complete();
@@ -389,13 +404,7 @@ class _CountingActivityScreenState extends State<CountingActivityScreen>
 
   // ── Helpers ──────────────────────────────────────────────────────────────────
 
-  bool _timeIsUp() {
-    if (widget.maxDurationMinutes == null || sessionStartTime == null) {
-      return false;
-    }
-    return DateTime.now().difference(sessionStartTime!).inMinutes >=
-        widget.maxDurationMinutes!;
-  }
+  bool _timeIsUp() => _remainingSeconds <= 0;
 
   int get minObjects => 2 + currentSubLevel;
   int get maxObjects => 3 + currentSubLevel * 2;
@@ -423,15 +432,14 @@ class _CountingActivityScreenState extends State<CountingActivityScreen>
 
   void _generateNewTrial() {
     _cancelAllTimers();
-    // Always stop TTS before starting a new trial — prevents bleed-over speech
     _tts.stop();
     if (_ttsCompleter != null && !_ttsCompleter!.isCompleted) {
       _ttsCompleter!.complete();
       _ttsCompleter = null;
     }
 
-    if (_timeIsUp()) {
-      _endSession(naturalCompletion: true);
+    if (_timeIsUp() || _allLevelsComplete) {
+      if (_timeIsUp()) _endSession(naturalCompletion: true);
       return;
     }
 
@@ -439,7 +447,7 @@ class _CountingActivityScreenState extends State<CountingActivityScreen>
 
     setState(() {
       hasAnswered = false;
-      showNextButton = false;   // ← hide Next button
+      showNextButton = false;
       showHint = false;
       isCountingHint = false;
       currentHintIndex = -1;
@@ -455,12 +463,9 @@ class _CountingActivityScreenState extends State<CountingActivityScreen>
       _objectKeys.add(GlobalKey());
     }
 
-    // Wait a frame for objects to render, then show the tutorial immediately
-    // and speak the question in parallel.
     Future.delayed(const Duration(milliseconds: 750), () async {
       if (!mounted || _hintRunning) return;
 
-      // 👈 FIXED: Show tutorial BEFORE TTS so it can't be skipped by an early answer
       if (mounted) _maybeTriggerTutorial();
 
       await _speak("How many?");
@@ -521,14 +526,13 @@ class _CountingActivityScreenState extends State<CountingActivityScreen>
   // ── Interaction ──────────────────────────────────────────────────────────────
 
   void _handleTap(int selected) {
-    if (!mounted || hasAnswered || _timeIsUp()) return;
+    if (!mounted || hasAnswered || _timeIsUp() || _allLevelsComplete) return;
     if (_showTutorial) setState(() => _showTutorial = false);
 
     if (selected == targetCount) {
-      // ── Correct ──
       setState(() {
         hasAnswered = true;
-        showNextButton = true;  // ← show manual Next button
+        showNextButton = true;
         _wrongTappedChoice = null;
         totalCorrect++;
         starsEarned++;
@@ -540,10 +544,7 @@ class _CountingActivityScreenState extends State<CountingActivityScreen>
       _speak("Well done!");
 
       if (totalCorrect % 3 == 0) _showWellDoneAnimation();
-
-      // No automatic advance – child presses Next
     } else {
-      // ── Wrong — highlight red, do NOT lock interaction ──
       _wrongAttempts++;
       setState(() => _wrongTappedChoice = selected);
       _shakeController.forward(from: 0.0);
@@ -555,7 +556,6 @@ class _CountingActivityScreenState extends State<CountingActivityScreen>
         if (mounted) setState(() => _wrongTappedChoice = null);
       });
 
-      // Auto-hint after 2 wrong attempts
       if (_wrongAttempts >= 2 && !showHint) {
         _hintAutoTimer = Timer(const Duration(milliseconds: 2400), () {
           if (mounted && !showHint && !hasAnswered) _showVisualHint();
@@ -593,7 +593,7 @@ class _CountingActivityScreenState extends State<CountingActivityScreen>
         _speak("Amazing! You reached a new level!");
         _showLevelUpReward();
       } else {
-        _endSession(naturalCompletion: true);
+        _onAllLevelsComplete();
         return;
       }
     }
@@ -603,6 +603,54 @@ class _CountingActivityScreenState extends State<CountingActivityScreen>
     } else {
       _generateNewTrial();
     }
+  }
+
+  void _onAllLevelsComplete() {
+    if (_allLevelsComplete) return;
+    setState(() => _allLevelsComplete = true);
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(32.r)),
+        child: Padding(
+          padding: EdgeInsets.all(32.w),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.emoji_events_rounded,
+                  color: Colors.amber, size: 80.w),
+              SizedBox(height: 16.h),
+              Text(
+                'All levels complete!',
+                style: GoogleFonts.fredoka(
+                    fontSize: 28.sp,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.success),
+                textAlign: TextAlign.center,
+              ),
+              SizedBox(height: 12.h),
+              Text(
+                'Keep practising until the session time ends.',
+                style: GoogleFonts.fredoka(fontSize: 16.sp),
+                textAlign: TextAlign.center,
+              ),
+              SizedBox(height: 24.h),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx),
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.success),
+                child: Text('OK',
+                    style: GoogleFonts.fredoka(
+                        fontSize: 20.sp, color: Colors.white)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   // ── TTS-synced hint ──────────────────────────────────────────────────────────
@@ -623,7 +671,6 @@ class _CountingActivityScreenState extends State<CountingActivityScreen>
     for (int i = 0; i < targetCount; i++) {
       if (!mounted || !_hintRunning) return;
       setState(() => currentHintIndex = i);
-      // Each number awaits TTS finish (with timeout) before moving to the next
       await _speak("${i + 1}", timeout: const Duration(seconds: 3));
       if (!mounted || !_hintRunning) return;
       await Future.delayed(const Duration(milliseconds: 260));
@@ -672,7 +719,6 @@ class _CountingActivityScreenState extends State<CountingActivityScreen>
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  // Stay
                   GestureDetector(
                     onTap: () => Navigator.of(ctx).pop(false),
                     child: Container(
@@ -698,7 +744,6 @@ class _CountingActivityScreenState extends State<CountingActivityScreen>
                       ),
                     ),
                   ),
-                  // Leave
                   GestureDetector(
                     onTap: () => Navigator.of(ctx).pop(true),
                     child: Container(
@@ -734,7 +779,8 @@ class _CountingActivityScreenState extends State<CountingActivityScreen>
 
     if (leave == true && mounted) {
       _cancelAllTimers();
-      Navigator.of(context).pop(); // → child dashboard
+      _sessionTimer?.cancel();
+      Navigator.of(context).pop();
     } else if (mounted && !_hintRunning) {
       _speak("How many?");
     }
@@ -742,8 +788,9 @@ class _CountingActivityScreenState extends State<CountingActivityScreen>
 
   void _endSession({required bool naturalCompletion}) {
     _cancelAllTimers();
+    _sessionTimer?.cancel();
     _tts.stop();
-    if (naturalCompletion) {
+    if (naturalCompletion && _sessionTimerExpired) {
       _saveProgress();
       _showSessionReward();
     } else {
@@ -962,7 +1009,6 @@ class _CountingActivityScreenState extends State<CountingActivityScreen>
                   ),
                 ),
               ),
-              // Big number badge on the active item
               if (isHighlighted)
                 Container(
                   width: 76.w,
@@ -981,7 +1027,6 @@ class _CountingActivityScreenState extends State<CountingActivityScreen>
                     ),
                   ),
                 ),
-              // Small green tick badge on counted items
               if (isAlreadyCounted)
                 Positioned(
                   top: 0,
@@ -1195,7 +1240,8 @@ class _CountingActivityScreenState extends State<CountingActivityScreen>
                 starsEarned = 0;
                 correctInSubLevel = 0;
                 collectedStars.clear();
-                _tutorialShownForLevel.clear(); // tutorials replay on restart
+                _tutorialShownForLevel.clear();
+                _allLevelsComplete = false;
               });
               _generateNewTrial();
             },
@@ -1346,7 +1392,7 @@ class _CountingActivityScreenState extends State<CountingActivityScreen>
                       ),
                     ),
 
-                    // ── Next button (child‑paced) ───────────────────────────
+                    // ── Next button ───────────────────────────────────────
                     if (showNextButton)
                       Padding(
                         padding: EdgeInsets.only(top: 24.h),
@@ -1367,7 +1413,7 @@ class _CountingActivityScreenState extends State<CountingActivityScreen>
                 ),
               ),
 
-              // ── Finger tutorial overlay (floats above everything) ─────
+              // ── Finger tutorial overlay ──────────────────────────────
               if (_showTutorial &&
                   _tutorialStart != null &&
                   !hasAnswered)

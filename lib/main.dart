@@ -52,12 +52,12 @@ class NyotaApp extends StatelessWidget {
                 themeMode: themeProvider.themeMode,
 
                 // ✅ Your app starts here
-                home: const LoadingScreen(),
+                home:  LandingPage(),
 
                 routes: {
-                  '/login': (context) => const NyotaLoginPage(),
-                  '/signup': (context) => const SignupScreen(),
-                  '/main-dashboard': (context) => const MainDashboardScreen(),
+                  '/login': (context) =>  NyotaLoginPage(),
+                  '/signup': (context) =>  SignupScreen(),
+                  '/main-dashboard': (context) =>  MainDashboardScreen(),
                 },
               );
             },

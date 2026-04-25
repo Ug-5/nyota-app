@@ -3,7 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class ThemeProvider extends ChangeNotifier {
   // Default to system settings for better accessibility
-  ThemeMode _themeMode = ThemeMode.system; 
+  ThemeMode _themeMode = ThemeMode.light; 
   static const String _themeKey = 'theme_mode';
 
   ThemeMode get themeMode => _themeMode;

@@ -105,13 +105,13 @@ class _ShapeTraceTutorialState extends State<_ShapeTraceTutorial>
 class ShapesActivityScreen extends StatefulWidget {
   final VoidCallback onSessionComplete;
   final String? rewardImagePath;
-  final int? maxDurationMinutes;
+  final int sessionDuration; // in minutes, required
 
   const ShapesActivityScreen({
     super.key,
     required this.onSessionComplete,
     this.rewardImagePath,
-    this.maxDurationMinutes,
+    required this.sessionDuration,
   });
 
   @override
@@ -121,9 +121,6 @@ class ShapesActivityScreen extends StatefulWidget {
 class _ShapesActivityScreenState extends State<ShapesActivityScreen>
     with TickerProviderStateMixin {
   // ── Configuration ──────────────────────────────────────────────────────────
-  // Reduced from 4 → 2: fewer repetitions of the same target shape per sub-level
-  // so the child doesn't feel overwhelmed by seeing the exact same prompt
-  // multiple times in a row.
   static const int trialsPerSubLevel = 2;
   static const int maxShapeIndex = 5; // circle(0) … oval(5)
   final List<int> subLevelsPerShape = [3, 3, 3, 3, 3, 3];
@@ -145,17 +142,15 @@ class _ShapesActivityScreenState extends State<ShapesActivityScreen>
   bool isTracing = false;
   bool _hintRunning = false;
 
+  // New session flags
+  bool _sessionTimerExpired = false;
+  bool _allLevelsComplete = false;
+
   // ── Tutorial (tracing) state ───────────────────────────────────────────────
   bool _showTutorial = false;
   List<Offset>? _tutorialPath;
 
   // ── Shape data ─────────────────────────────────────────────────────────────
-  // Each shape now has:
-  //   • a unique colour for visual identity across all sub-levels
-  //   • a real-life emoji + label so children see where the shape exists in the
-  //     real world (circle → sun, square → window, etc.)
-  // The 'description' field has been removed: it added no value for young
-  // learners and created verbal clutter.
   final List<Map<String, dynamic>> shapesData = [
     {
       'name': 'circle',
@@ -209,6 +204,8 @@ class _ShapesActivityScreenState extends State<ShapesActivityScreen>
   // ── Timers ─────────────────────────────────────────────────────────────────
   Timer? _hintTimer;
   Timer? _wrongClearTimer;
+  Timer? _sessionTimer;
+  int _remainingSeconds = 0;
 
   // ── TTS ────────────────────────────────────────────────────────────────────
   late FlutterTts _tts;
@@ -241,9 +238,28 @@ class _ShapesActivityScreenState extends State<ShapesActivityScreen>
 
     _initTts();
 
+    // Session timer based on parent schedule
+    _remainingSeconds = widget.sessionDuration * 60;
+    _startSessionTimer();
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadPersistentData().then((_) {
         if (mounted) _generateNewTrial();
+      });
+    });
+  }
+
+  void _startSessionTimer() {
+    _sessionTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!mounted) { t.cancel(); return; }
+      setState(() {
+        if (_remainingSeconds > 0) {
+          _remainingSeconds--;
+        } else {
+          t.cancel();
+          _sessionTimerExpired = true;
+          _endSession(naturalCompletion: true);
+        }
       });
     });
   }
@@ -302,6 +318,7 @@ class _ShapesActivityScreenState extends State<ShapesActivityScreen>
   void dispose() {
     _hintTimer?.cancel();
     _wrongClearTimer?.cancel();
+    _sessionTimer?.cancel();
     _hintRunning = false;
     if (_ttsCompleter != null && !_ttsCompleter!.isCompleted) {
       _ttsCompleter!.complete();
@@ -337,11 +354,7 @@ class _ShapesActivityScreenState extends State<ShapesActivityScreen>
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
-  bool _timeIsUp() {
-    if (widget.maxDurationMinutes == null || sessionStartTime == null) return false;
-    return DateTime.now().difference(sessionStartTime!).inMinutes >=
-        widget.maxDurationMinutes!;
-  }
+  bool _timeIsUp() => _remainingSeconds <= 0;
 
   int get _totalExpectedTrials =>
       subLevelsPerShape.reduce((a, b) => a + b) * trialsPerSubLevel;
@@ -363,38 +376,29 @@ class _ShapesActivityScreenState extends State<ShapesActivityScreen>
   }
 
   // ── Shape-path computation for tracing animation ───────────────────────────
-  //
-  // Returns a list of screen-space Offsets that form the outline of [shape],
-  // centred at [center] with approximate radius [radius].  The finger emoji
-  // is then animated along this polyline.
   static List<Offset> _computeShapePath(
       String shape, Offset center, double radius) {
-    const steps = 28; // smooth enough for circles/ovals
+    const steps = 28;
     switch (shape) {
       case 'circle':
-        // Full circle, starting at the top
         return List.generate(steps + 1, (i) {
           final a = (i / steps) * 2 * pi - pi / 2;
           return center + Offset(radius * cos(a), radius * sin(a));
         });
-
       case 'oval':
-        // Wider than tall (matches the widget proportions 1.4 × 1.0)
         return List.generate(steps + 1, (i) {
           final a = (i / steps) * 2 * pi - pi / 2;
           return center + Offset(radius * 1.35 * cos(a), radius * sin(a));
         });
-
       case 'square':
         final s = radius * 0.82;
         return [
-          center + Offset(-s, -s), // top-left  → start
-          center + Offset(s, -s),  // top-right
-          center + Offset(s, s),   // bottom-right
-          center + Offset(-s, s),  // bottom-left
-          center + Offset(-s, -s), // back to start (close path)
+          center + Offset(-s, -s),
+          center + Offset(s, -s),
+          center + Offset(s, s),
+          center + Offset(-s, s),
+          center + Offset(-s, -s),
         ];
-
       case 'rectangle':
         final w = radius * 1.15, h = radius * 0.70;
         return [
@@ -404,26 +408,22 @@ class _ShapesActivityScreenState extends State<ShapesActivityScreen>
           center + Offset(-w, h),
           center + Offset(-w, -h),
         ];
-
       case 'triangle':
         return [
-          center + Offset(0, -radius),            // apex (top centre)
-          center + Offset(radius * 0.95, radius * 0.72),  // bottom-right
-          center + Offset(-radius * 0.95, radius * 0.72), // bottom-left
-          center + Offset(0, -radius),            // back to apex
+          center + Offset(0, -radius),
+          center + Offset(radius * 0.95, radius * 0.72),
+          center + Offset(-radius * 0.95, radius * 0.72),
+          center + Offset(0, -radius),
         ];
-
       case 'star':
         final pts = <Offset>[];
         for (int i = 0; i < 10; i++) {
           final a = (i / 10) * 2 * pi - pi / 2;
-          // Alternate between outer (odd) and inner (even) radius
           final r = i.isEven ? radius : radius * 0.42;
           pts.add(center + Offset(r * cos(a), r * sin(a)));
         }
-        pts.add(pts.first); // close
+        pts.add(pts.first);
         return pts;
-
       default:
         return [center];
     }
@@ -439,8 +439,8 @@ class _ShapesActivityScreenState extends State<ShapesActivityScreen>
       _ttsCompleter = null;
     }
 
-    if (_timeIsUp()) {
-      _endSession(naturalCompletion: true);
+    if (_timeIsUp() || _allLevelsComplete) {
+      if (_timeIsUp()) _endSession(naturalCompletion: true);
       return;
     }
 
@@ -457,7 +457,6 @@ class _ShapesActivityScreenState extends State<ShapesActivityScreen>
       _generateChoices();
     });
 
-    // Speak only the shape name – simple, single word, no description.
     final displayName =
         shapesData[currentShapeIndex]['displayName'] as String;
     Future.delayed(const Duration(milliseconds: 400), () {
@@ -470,7 +469,6 @@ class _ShapesActivityScreenState extends State<ShapesActivityScreen>
     final Set<String> used = {targetShape};
 
     if (currentSubLevel == 1) {
-      // Errorless: only one choice so the child cannot fail on first exposure
       return;
     }
 
@@ -496,8 +494,6 @@ class _ShapesActivityScreenState extends State<ShapesActivityScreen>
   }
 
   // ── Hint button ────────────────────────────────────────────────────────────
-  // Speaks just the shape name (no description).  In tracing mode it also
-  // triggers the finger-trace animation.
 
   void _onHintPressed() async {
     if (_hintRunning || !_ttsReady || !mounted) return;
@@ -523,7 +519,6 @@ class _ShapesActivityScreenState extends State<ShapesActivityScreen>
   }
 
   // ── Tracing tutorial ───────────────────────────────────────────────────────
-  // Computes the shape-specific path and starts the finger animation.
 
   void _triggerTracingTutorial() {
     if (_showTutorial || !mounted) return;
@@ -533,8 +528,6 @@ class _ShapesActivityScreenState extends State<ShapesActivityScreen>
     if (box == null) return;
 
     final center = box.localToGlobal(box.size.center(Offset.zero));
-    // Use ~40 % of the shorter dimension so the path fits comfortably inside
-    // the target container regardless of device size.
     final radius = box.size.shortestSide * 0.40;
 
     final path = _computeShapePath(targetShape, center, radius);
@@ -548,7 +541,7 @@ class _ShapesActivityScreenState extends State<ShapesActivityScreen>
   // ── Interaction ────────────────────────────────────────────────────────────
 
   void _handleTap(String selected) {
-    if (!mounted || hasAnswered || _timeIsUp() || isTracing) return;
+    if (!mounted || hasAnswered || _timeIsUp() || isTracing || _allLevelsComplete) return;
     if (_showTutorial) setState(() => _showTutorial = false);
 
     if (selected == targetShape) {
@@ -573,9 +566,8 @@ class _ShapesActivityScreenState extends State<ShapesActivityScreen>
     }
   }
 
-  /// Called when the child taps "I traced it!" during the tracing sub-level.
   void _handleTracingDone() {
-    if (!mounted || hasAnswered) return;
+    if (!mounted || hasAnswered || _allLevelsComplete) return;
     setState(() {
       hasAnswered = true;
       showNextButton = true;
@@ -620,7 +612,7 @@ class _ShapesActivityScreenState extends State<ShapesActivityScreen>
         _speak("Amazing! New shape!");
         _showLevelUpReward();
       } else {
-        _endSession(naturalCompletion: true);
+        _onAllLevelsComplete();
         return;
       }
     }
@@ -679,6 +671,7 @@ class _ShapesActivityScreenState extends State<ShapesActivityScreen>
 
     if (leave == true && mounted) {
       _cancelAllTimers();
+      _sessionTimer?.cancel();
       Navigator.of(context).pop();
     }
   }
@@ -711,13 +704,61 @@ class _ShapesActivityScreenState extends State<ShapesActivityScreen>
 
   void _endSession({required bool naturalCompletion}) {
     _cancelAllTimers();
-    _tts.stop();
-    if (naturalCompletion) {
+    _sessionTimer?.cancel();
+    if (naturalCompletion && _sessionTimerExpired) {
       _saveProgress();
       _showSessionReward();
     } else {
       Navigator.of(context).pop();
     }
+  }
+
+  void _onAllLevelsComplete() {
+    if (_allLevelsComplete) return;
+    setState(() => _allLevelsComplete = true);
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(32.r)),
+        child: Padding(
+          padding: EdgeInsets.all(32.w),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.emoji_events_rounded,
+                  color: Colors.amber, size: 80.w),
+              SizedBox(height: 16.h),
+              Text(
+                'All shapes complete!',
+                style: GoogleFonts.fredoka(
+                    fontSize: 28.sp,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.success),
+                textAlign: TextAlign.center,
+              ),
+              SizedBox(height: 12.h),
+              Text(
+                'Keep practising until the session time ends.',
+                style: GoogleFonts.fredoka(fontSize: 16.sp),
+                textAlign: TextAlign.center,
+              ),
+              SizedBox(height: 24.h),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx),
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.success),
+                child: Text('OK',
+                    style: GoogleFonts.fredoka(
+                        fontSize: 20.sp, color: Colors.white)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   void _restartActivity() {
@@ -746,6 +787,7 @@ class _ShapesActivityScreenState extends State<ShapesActivityScreen>
                 starsEarned = 0;
                 correctInSubLevel = 0;
                 collectedStars.clear();
+                _allLevelsComplete = false;
               });
               _generateNewTrial();
             },
@@ -923,7 +965,6 @@ class _ShapesActivityScreenState extends State<ShapesActivityScreen>
 
   Widget _buildShapeWidget(String shape, double size,
       {bool isTarget = false}) {
-    // Each shape has its own colour; choice cards use the primary theme colour
     final data = shapesData.firstWhere((s) => s['name'] == shape,
         orElse: () => shapesData.first);
     final color = isTarget
@@ -1034,7 +1075,7 @@ class _ShapesActivityScreenState extends State<ShapesActivityScreen>
                       ),
                     ),
 
-                    // ── Progress bar (colour matches current shape) ─────────
+                    // ── Progress bar ─────────────────────────────────────────
                     Padding(
                       padding: EdgeInsets.fromLTRB(24.w, 12.h, 24.w, 8.h),
                       child: LinearProgressIndicator(
@@ -1049,16 +1090,10 @@ class _ShapesActivityScreenState extends State<ShapesActivityScreen>
                     SizedBox(height: 16.h),
 
                     // ── Target area + real-life association ─────────────────
-                    // Side-by-side layout (works well in landscape):
-                    //   LEFT  → geometric shape inside a rounded card
-                    //   RIGHT → large real-life emoji + label
-                    // This gives children a concrete anchor
-                    // (e.g. "circle = sun") without any verbal description.
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        // Geometric shape card
                         Column(
                           children: [
                             Container(
@@ -1085,7 +1120,6 @@ class _ShapesActivityScreenState extends State<ShapesActivityScreen>
                               ),
                             ),
                             SizedBox(height: 8.h),
-                            // Shape name – large, friendly, colour-coded
                             Text(
                               shapeInfo['displayName'] as String,
                               style: GoogleFonts.fredoka(
@@ -1096,10 +1130,7 @@ class _ShapesActivityScreenState extends State<ShapesActivityScreen>
                             ),
                           ],
                         ),
-
                         SizedBox(width: 36.w),
-
-                        // Real-life emoji column
                         Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -1157,7 +1188,7 @@ class _ShapesActivityScreenState extends State<ShapesActivityScreen>
 
                     SizedBox(height: 24.h),
 
-                    // ── Choice cards (matching sub-levels) ──────────────────
+                    // ── Choice cards ────────────────────────────────────────
                     if (!isTracing)
                       Padding(
                         padding: EdgeInsets.symmetric(horizontal: 20.w),
